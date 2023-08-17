@@ -4,17 +4,27 @@ import shlex
 from Entities import disk
 from Entities.MBR import MBR
 
+parser = argparse.ArgumentParser(description="Command Parser", allow_abbrev=False)
+subparsers = parser.add_subparsers(help='Available commands')
+
+
+def pivote(command):
+    if validate_command(command):
+        # Parse the command using your existing logic
+        parseString(command)
+
 
 def parseString(command):
-    parser = argparse.ArgumentParser(description="Command Parser")
-    subparsers = parser.add_subparsers(help='Available commands')
-
     # Parser for the mkdisk command
     mkdisk_parser = subparsers.add_parser('mkdisk', help='Create a disk')
-    mkdisk_parser.add_argument("-size", type=str, default="")
-    mkdisk_parser.add_argument("-path", type=str, default="")
-    mkdisk_parser.add_argument("-fit", type=str, default="")
-    mkdisk_parser.add_argument("-unit", type=str, default="")
+
+    # Add arguments for mkdisk command
+    mkdisk_parser.add_argument("-size", type=str, help="Size of the disk")
+    mkdisk_parser.add_argument("-path", type=str, help="Path to save the disk")
+    mkdisk_parser.add_argument("-fit", type=str.lower, default="ff", choices=['bf', 'ff', 'wf'], )
+    mkdisk_parser.add_argument("-unit", default='m', type=str.lower, choices=['k', 'm'])
+
+    # Set default command
     mkdisk_parser.set_defaults(which='mkdisk')
 
     # Parser for the execute command
@@ -28,7 +38,11 @@ def parseString(command):
     rep_parser.set_defaults(which='rep')
 
     try:
-        args = parser.parse_args(shlex.split(command))
+        originalComand = shlex.split(command)
+        loweCasedCommand = lowerCaseCommand(originalComand)
+        newStringWithLowers = ' '.join(loweCasedCommand)
+        args = parser.parse_args(shlex.split(newStringWithLowers))
+
         if args.which == 'mkdisk':
             mkdiskCommand(args)
         elif args.which == 'execute':
@@ -39,6 +53,19 @@ def parseString(command):
         print("Error: one argument was not expected")
     except SystemExit:
         pass  # Prevent argparse from exiting the program
+
+
+def lowerCaseCommand(command_args):
+    for i in range(len(command_args)):
+        if not (command_args[i].lower().startswith('path') or command_args[i].lower().startswith('-path')):
+            command_args[i] = command_args[i].lower()
+        else:
+            splitted_path = command_args[i].split('=')
+            splitted_path[0] = splitted_path[0].lower()
+            if " " in splitted_path[1]:
+                command_args[i] = command_args[i].replace(splitted_path[1], '"' + splitted_path[1] + '"')
+
+    return command_args
 
 
 def executeCommand(args):
@@ -76,3 +103,14 @@ def repCommand(args):
 
     except Exception as e:
         print("An error occurred:", e)
+
+
+def validate_command(command):
+    arguments = shlex.split(command)
+
+    for arg in arguments[1:]:
+        parts = arg.split('=')
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            print(f"Error: Invalid argument format")
+            return False
+    return True
