@@ -30,7 +30,10 @@ class MBR(ctypes.Structure):
         self.fit = bytes(fit, 'ascii')
 
     def getSerializedMBR(self):
-        serialized_partition = self.partition1.getSerializedPartition()
+        serialized_partition1 = self.partition1.getSerializedPartition()
+        serialized_partition2 = self.partition2.getSerializedPartition()
+        serialized_partition3 = self.partition3.getSerializedPartition()
+        serialized_partition4 = self.partition4.getSerializedPartition()
         serialized = struct.pack(
             pack_const,
             self.size,
@@ -38,7 +41,8 @@ class MBR(ctypes.Structure):
             self.signature,
             self.fit
         )
-        return serialized + serialized_partition * 4
+        return (serialized + serialized_partition1 + serialized_partition2 + serialized_partition3
+                + serialized_partition4)
 
     def deserialize(self, data):
         mbr_size = self.getMBRSize()
@@ -83,8 +87,6 @@ class MBR(ctypes.Structure):
         self.partition3.printPartitionData()
         print('-------PARTITION 4--------')
         self.partition4.printPartitionData()
-
-
 
     def getMBRSize(self):
         return struct.calcsize(pack_const)

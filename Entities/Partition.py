@@ -47,3 +47,6 @@ class Partition(ctypes.Structure):
         print('Size: ', self.size)
         print('Name: ', self.name)
 
+    def equalToDefault(self, partition):
+        return (partition.status == self.status and partition.type == self.type and partition.fit == self.fit and
+                partition.start == self.start and partition.size == self.size and partition.name == self.name)

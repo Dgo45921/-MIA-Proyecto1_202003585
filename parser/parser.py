@@ -1,8 +1,10 @@
 import argparse
 import shlex
 
-from Entities import disk
-from Entities.MBR import MBR
+import commands
+from commands.mkdisk import mkdiskCommand
+from commands.rep import repCommand
+from commands.fdisk import fdiskCommand
 
 parser = argparse.ArgumentParser(description="Command Parser", allow_abbrev=False)
 subparsers = parser.add_subparsers(help='Available commands')
@@ -35,9 +37,9 @@ fdisk_parser = subparsers.add_parser('fdisk', help='Create a partition')
 fdisk_parser.add_argument("-size", type=int, help="Size of the disk", required=True)
 fdisk_parser.add_argument("-path", type=str, help="Path to save the disk", required=True)
 fdisk_parser.add_argument("-name", type=str, help="Path to save the disk", required=True)
-fdisk_parser.add_argument("-unit",  type=str.lower, default='k', choices=['b', 'k', 'm'])
-fdisk_parser.add_argument("-type", type=str.lower,  default="p", choices=['p', 'e', 'l'])
-fdisk_parser.add_argument("-fit", type=str.lower,  default="wf", choices=['bf', 'ff', 'wf'])
+fdisk_parser.add_argument("-unit", type=str.lower, default='k', choices=['b', 'k', 'm'])
+fdisk_parser.add_argument("-type", type=str.lower, default="p", choices=['p', 'e', 'l'])
+fdisk_parser.add_argument("-fit", type=str.lower, default="wf", choices=['bf', 'ff', 'wf'])
 fdisk_parser.add_argument("-delete", type=str)
 fdisk_parser.add_argument("-add", type=int)
 fdisk_parser.set_defaults(which='fdisk')
@@ -45,7 +47,6 @@ fdisk_parser.set_defaults(which='fdisk')
 
 def pivote(command):
     if validate_command(command):
-        # Parse the command using your existing logic
         parseString(command)
 
 
@@ -61,9 +62,10 @@ def parseString(command):
         elif args.which == 'execute':
             executeCommand(args)
         elif args.which == 'rep':
-            repCommand(args)
+            commands.rep.repCommand(args)
         elif args.which == 'fdisk':
-            repCommand(args)
+            fdiskCommand(args)
+
     except argparse.ArgumentError as _:
         print("Error: one argument was not expected")
     except SystemExit:
@@ -72,7 +74,8 @@ def parseString(command):
 
 def lowerCaseCommand(command_args):
     for i in range(len(command_args)):
-        if not (command_args[i].lower().startswith('path') or command_args[i].lower().startswith('-path')):
+        if not (command_args[i].lower().startswith('path') or command_args[i].lower().startswith('-path') or
+                command_args[i].lower().startswith('name') or command_args[i].lower().startswith('-name')):
             command_args[i] = command_args[i].lower()
         else:
             splitted_path = command_args[i].split('=')
@@ -91,33 +94,10 @@ def executeCommand(args):
             for line in file:
                 stripped_line = line.split('#', 1)[0].strip()
                 if stripped_line:
-                    print(stripped_line)
+                    print('Ejecutando:', stripped_line)
                     parseString(stripped_line)
     except FileNotFoundError:
         print(f"File '{file_path}' not found.")
-    except Exception as e:
-        print("An error occurred:", e)
-
-
-def mkdiskCommand(args):
-    newMkdisk = disk.Mkdisk(args.size, args.path, args.fit, args.unit)
-    newMkdisk.createDisk()
-
-
-def repCommand(args):
-    try:
-        file_path = args.path
-        newmbr = MBR()
-        with open(file_path, 'rb') as file:
-            file.seek(0)
-            data = file.read(newmbr.getMBRSize() + newmbr.partition1.getSerializedPartitionSize() * 4)
-            # print("Size data: ",  len(data))
-            newmbr.deserialize(data)
-            file.close()
-        newmbr.printData()
-
-        # TODO CREATE GRAPHVIZ OF PARTITIONS
-
     except Exception as e:
         print("An error occurred:", e)
 
