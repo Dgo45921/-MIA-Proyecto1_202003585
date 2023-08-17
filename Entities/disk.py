@@ -12,24 +12,31 @@ class Mkdisk:
         self.mbr = None
 
     def createDisk(self):
-        if not self.size.isdigit():
-            print('Error: size parameter must be a number')
+        if self.size == 0:
+            print('Error: size parameter must be an integer greater than 0')
+            return
+        if not self.path.endswith('.dsk'):
+            print('Error: extension must be ".dsk"')
             return
 
-        # writing 5mb of pure 0's bytes
-        if self.units == 'm':
-            file_size = int(self.size) * 1024 * 1024  # 5MB
-            byte_value = b'\x00'
-            directory = os.path.dirname(self.path)
-            os.makedirs(directory, exist_ok=True)
+        file_size = 0
 
-            with open(self.path, 'wb') as f:
-                f.write(byte_value * file_size)
-                f.close()
+        if self.units == 'm':
+            file_size = int(self.size) * 1024 * 1024  # MB
+        else:
+            file_size = int(self.size) * 1024  # KB
+
+        byte_value = b'\x00'
+        directory = os.path.dirname(self.path)
+        os.makedirs(directory, exist_ok=True)
+
+        with open(self.path, 'wb') as f:
+            f.write(byte_value * file_size)
+            f.close()
 
         # creating mbr
         self.mbr = MBR()
-        self.mbr.setSize(int(self.size) * 1024 * 1024)
+        self.mbr.setAttributes(int(self.size) * 1024 * 1024, self.fit[0].upper())
 
         with open(self.path, 'rb+') as f:
             f.seek(0)
@@ -40,4 +47,3 @@ class Mkdisk:
             f.write(self.mbr.getSerializedMBR())
             f.close()
             print('The disk was created succesfully!')
-
