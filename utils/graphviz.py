@@ -47,3 +47,4 @@ def basicMBR_report(mbr, args):
 
     system("dot -Tpng " + f"{filename[0]}.dot" + " -o " + f"{filename[0]}.png")
     system('rm ' + f"{filename[0]}.dot")
+    print('Graphviz report created in the same directory of the disk!')
