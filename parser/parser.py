@@ -40,7 +40,7 @@ fdisk_parser.add_argument("-name", type=str, help="Path to save the disk", requi
 fdisk_parser.add_argument("-unit", type=str.lower, default='k', choices=['b', 'k', 'm'])
 fdisk_parser.add_argument("-type", type=str.lower, default="p", choices=['p', 'e', 'l'])
 fdisk_parser.add_argument("-fit", type=str.lower, default="wf", choices=['bf', 'ff', 'wf'])
-fdisk_parser.add_argument("-delete", type=str)
+fdisk_parser.add_argument("-delete", type=str, choices='full')
 fdisk_parser.add_argument("-add", type=int)
 fdisk_parser.set_defaults(which='fdisk')
 
@@ -64,7 +64,7 @@ def parseString(command):
         elif args.which == 'rep':
             commands.rep.repCommand(args)
         elif args.which == 'fdisk':
-            fdiskCommand(args)
+            fdiskCommand(args,shlex.split(newStringWithLowers)[1])
 
     except argparse.ArgumentError as _:
         print("Error: one argument was not expected")
