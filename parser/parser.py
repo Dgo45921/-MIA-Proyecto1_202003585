@@ -5,6 +5,7 @@ import commands
 from commands.mkdisk import mkdiskCommand
 from commands.rep import repCommand
 from commands.fdisk import fdiskCommand
+from commands.rmdisk import rmdisk
 
 parser = argparse.ArgumentParser(description="Command Parser", allow_abbrev=False)
 subparsers = parser.add_subparsers(help='Available commands')
@@ -44,6 +45,11 @@ fdisk_parser.add_argument("-delete", type=str, choices='full')
 fdisk_parser.add_argument("-add", type=int)
 fdisk_parser.set_defaults(which='fdisk')
 
+# subparsers for rmdisk
+rmdisk_parser = subparsers.add_parser('rmdisk', help='Deletes a disk')
+rmdisk_parser.add_argument("-path", type=str, help="path of the disk", required=True)
+rmdisk_parser.set_defaults(which='rmdisk')
+
 
 def pivote(command):
     if validate_command(command):
@@ -65,6 +71,8 @@ def parseString(command):
             commands.rep.repCommand(args)
         elif args.which == 'fdisk':
             fdiskCommand(args,shlex.split(newStringWithLowers)[1])
+        elif args.which == 'rmdisk':
+            rmdisk(args.path)
 
     except argparse.ArgumentError as _:
         print("Error: one argument was not expected")
