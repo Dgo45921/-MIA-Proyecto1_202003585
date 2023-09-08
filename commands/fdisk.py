@@ -1,4 +1,5 @@
 import Entities
+from Entities.EBR import EBR
 from commands.rep import getMBRBypath
 
 mbr_full_size = 121
@@ -105,6 +106,47 @@ def createPartition(args):
             print('Error: There can only be one extended partition in the disk')
             return
 
+    if args.type == 'l':
+        foundExtended = False
+        if b'e' == mbr.partition1.type:
+            partitionToModify = mbr.partition1
+            foundExtended = True
+
+        elif b'e' == mbr.partition2.type:
+            partitionToModify = mbr.partition2
+            foundExtended = True
+        elif b'e' == mbr.partition3.type:
+            partitionToModify = mbr.partition3
+            foundExtended = True
+        elif b'e' == mbr.partition4.type:
+            partitionToModify = mbr.partition4
+            foundExtended = True
+
+        if foundExtended:
+            first_ebr = get_ebr(partitionToModify.start, args.path)
+            pointer = partitionToModify.start
+            while first_ebr.next != -1:
+                first_ebr = get_ebr(first_ebr.next, args.path)
+                pointer += first_ebr.size
+            first_ebr.name = bytes(args.name, 'ascii')
+            first_ebr.start = pointer
+            first_ebr.size = calculate_size(args.unit, args.size)
+            first_ebr.fit = bytes(args.fit[0], 'ascii')
+
+            next_ebr = EBR()
+            next_ebr.start = first_ebr.start + first_ebr.getEBRsize() + first_ebr.size
+            first_ebr.next = next_ebr.start
+            with open(args.path, 'rb+') as f:
+                f.seek(first_ebr.start)
+                f.write(first_ebr.getSerializedEBR())
+                f.seek(next_ebr.start)
+                f.write(next_ebr.getSerializedEBR())
+                f.close()
+            return
+        else:
+            print('No extended partition to add this logical partition was found!')
+            return
+
     partitionToModify.type = bytes(args.type, 'ascii')
     if mbr.fit == b'F':
         print('F')
@@ -141,6 +183,14 @@ def createPartition(args):
         f.seek(0)
         f.write(mbr.getSerializedMBR())
         f.close()
+
+    if partitionToModify.type == b'e':
+        new_ebr = EBR()
+        with open(args.path, 'rb+') as f:
+            f.seek(partitionToModify.start)
+            f.write(new_ebr.getSerializedEBR())
+            f.close()
+
     print('Partition setted!')
 
 
@@ -350,3 +400,14 @@ def add_space(mbr, partition_index, additional_size, disk_size, args):
         f.close()
 
     print(f'Partition: {args.name}\' size increased: {additional_size} bytes')
+
+
+def get_ebr(intial_pos, path):
+    ebr = EBR()
+    with open(path, 'rb+') as f:
+        f.seek(intial_pos)
+        readed = f.read(ebr.getEBRsize())
+        ebr.deserialize(readed)
+        f.close()
+
+    return ebr

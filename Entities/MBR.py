@@ -6,6 +6,7 @@ import struct
 from Entities.Partition import Partition
 
 pack_const = '< i i i 1s'
+# 27 bytes
 
 
 class MBR(ctypes.Structure):
