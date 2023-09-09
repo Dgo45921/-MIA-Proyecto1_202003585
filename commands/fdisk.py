@@ -6,7 +6,6 @@ mbr_full_size = 121
 
 
 def fdiskCommand(args, first_parameter):
-
     if args.size <= 0:
         print('Error: size of partition must be greater than 0!')
         return
@@ -87,35 +86,117 @@ def createPartition(args):
     default_partition = Entities.Partition.Partition()
     mbr = getMBRBypath(args.path)
     partitionToModify = None
-
-    if default_partition.equalToDefault(mbr.partition1):
-        partitionToModify = mbr.partition1
-    elif default_partition.equalToDefault(mbr.partition2):
-        partitionToModify = mbr.partition2
-    elif default_partition.equalToDefault(mbr.partition3):
-        partitionToModify = mbr.partition3
-    elif default_partition.equalToDefault(mbr.partition4):
-        partitionToModify = mbr.partition4
-
-    partitionToModify.status = bytes('1', 'ascii')
-    partitionToModify.fit = bytes(args.fit[0], 'ascii')
-    if (bytes(args.name, 'ascii') != mbr.partition1.name and bytes(args.name, 'ascii') != mbr.partition2.name and
-            bytes(args.name, 'ascii') != mbr.partition3.name and bytes(args.name, 'ascii') != mbr.partition4.name):
-        partitionToModify.name = bytes(args.name, 'ascii')
-    else:
-        print('Error: partition name must be different than the other partitions')
-        return
-
-    if args.type == 'e':
-
-        if (b'e' != mbr.partition1.type and b'e' != mbr.partition2.type and
-                b'e' != mbr.partition3.type and b'e' != mbr.partition4.type):
-            partitionToModify.type = bytes(args.type, 'ascii')
+    if args.type == 'p' or args.type == 'e':
+        if default_partition.equalToDefault(mbr.partition1):
+            partitionToModify = mbr.partition1
+        elif default_partition.equalToDefault(mbr.partition2):
+            partitionToModify = mbr.partition2
+        elif default_partition.equalToDefault(mbr.partition3):
+            partitionToModify = mbr.partition3
+        elif default_partition.equalToDefault(mbr.partition4):
+            partitionToModify = mbr.partition4
         else:
-            print('Error: There can only be one extended partition in the disk')
+            print("There is no space available for a new primary or extended partition!")
             return
 
-    if args.type == 'l':
+        partitionToModify.status = bytes('1', 'ascii')
+        partitionToModify.fit = bytes(args.fit[0], 'ascii')
+        if (bytes(args.name, 'ascii') != mbr.partition1.name and bytes(args.name, 'ascii') != mbr.partition2.name and
+                bytes(args.name, 'ascii') != mbr.partition3.name and bytes(args.name, 'ascii') != mbr.partition4.name):
+            partitionToModify.name = bytes(args.name, 'ascii')
+        else:
+            foundExtended = False
+            if b'e' == mbr.partition1.type:
+                partitionToModify = mbr.partition1
+                foundExtended = True
+
+            elif b'e' == mbr.partition2.type:
+                partitionToModify = mbr.partition2
+                foundExtended = True
+            elif b'e' == mbr.partition3.type:
+                partitionToModify = mbr.partition3
+                foundExtended = True
+            elif b'e' == mbr.partition4.type:
+                partitionToModify = mbr.partition4
+                foundExtended = True
+
+            if foundExtended:
+                first_ebr = get_ebr(partitionToModify.start, args.path)
+                while first_ebr.next != -1:
+                    if first_ebr.name == bytes(args.name, 'ascii'):
+                        print('Error: partition name must be different than the other partitions')
+                        return
+                    first_ebr = get_ebr(first_ebr.next, args.path)
+
+        if args.type == 'e':
+
+            if (b'e' != mbr.partition1.type and b'e' != mbr.partition2.type and
+                    b'e' != mbr.partition3.type and b'e' != mbr.partition4.type):
+                partitionToModify.type = bytes(args.type, 'ascii')
+            else:
+                print('Error: There can only be one extended partition in the disk')
+                return
+
+        partitionToModify.type = bytes(args.type, 'ascii')
+        partitions = [
+            {'size': mbr_full_size, 'start_byte': 0},
+            {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
+            {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
+            {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
+            {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
+        ]
+        if mbr.fit == b'F':
+            print('F')
+            pos = get_first_fit_position(mbr.size, partitionToModify, args, partitions)
+            if pos == -1:
+                print('Error: no space available')
+                return
+
+            partitionToModify.start = pos
+            print('the starting byte will be: ', pos)
+        elif mbr.fit == b'W':
+            print('W')
+            pos = get_worst_fit_position(mbr.size, partitionToModify, args, partitions)
+            if pos == -1:
+                print('Error: no space available')
+                return
+
+            partitionToModify.start = pos
+            print('the starting byte will be: ', pos)
+        elif mbr.fit == b'B':
+            print('B')
+            pos = get_best_fit_position(mbr.size, partitionToModify, args, partitions)
+            if pos == -1:
+                print('Error: no space available')
+                return
+
+            partitionToModify.start = pos
+            print('the starting byte will be: ', pos + 1)
+
+        if partitionToModify.size > mbr.size - mbr_full_size:
+            print('Error: partition size must be less than disk size')
+            return
+        with open(args.path, 'rb+') as f:
+            f.seek(0)
+            f.write(mbr.getSerializedMBR())
+            f.close()
+
+        if partitionToModify.type == b'e':
+            new_ebr = EBR()
+            with open(args.path, 'rb+') as f:
+                f.seek(partitionToModify.start)
+                f.write(new_ebr.getSerializedEBR())
+                f.close()
+
+        print('Partition setted!')
+
+    elif args.type == 'l':
+
+        if (bytes(args.name, 'ascii') == mbr.partition1.name or bytes(args.name, 'ascii') == mbr.partition2.name or
+                bytes(args.name, 'ascii') == mbr.partition3.name or bytes(args.name, 'ascii') == mbr.partition4.name):
+            print('Error, logical partition has the same name of another partition!')
+            return
+
         foundExtended = False
         if b'e' == mbr.partition1.type:
             partitionToModify = mbr.partition1
@@ -135,6 +216,13 @@ def createPartition(args):
             first_ebr = get_ebr(partitionToModify.start, args.path)
             first_partition = first_ebr.equalToDefault(EBR())
             pointer = partitionToModify.start
+            while first_ebr.next != -1:
+                if first_ebr.name == bytes(args.name, 'ascii'):
+                    print('Error, logical partition has the same name of another partition!')
+                    return
+                first_ebr = get_ebr(first_ebr.next, args.path)
+                pointer += first_ebr.size
+
             while first_ebr.next != -1:
                 first_ebr = get_ebr(first_ebr.next, args.path)
                 pointer += first_ebr.size
@@ -166,14 +254,6 @@ def createPartition(args):
                 next_ebr.fit = bytes(args.fit[0], 'ascii')
                 next_ebr.size = args.size
                 next_ebr.status = b'1'
-                partitions = [
-                    {'size': first_ebr.start+first_ebr.size, 'start_byte': 0},
-                ]
-                first_ebr = get_ebr(partitionToModify.start, args.path)
-                while first_ebr.next != -1:
-                    newDict = {'size': first_ebr.size + first_ebr.getEBRsize(), 'start_byte': first_ebr.start}
-                    partitions.append(newDict)
-                    first_ebr = get_ebr(first_ebr.next, args.path)
 
                 if next_ebr.start + next_ebr.size > partitionToModify.start + partitionToModify.size:
                     print("Error, logical partition is too big to add in the extended partition")
@@ -190,64 +270,11 @@ def createPartition(args):
             print('No extended partition to add this logical partition was found!')
             return
 
-    partitionToModify.type = bytes(args.type, 'ascii')
-    partitions = [
-        {'size': mbr_full_size, 'start_byte': 0},
-        {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
-        {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
-        {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
-        {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
-    ]
-    if mbr.fit == b'F':
-        print('F')
-        pos = get_first_fit_position(mbr, partitionToModify, args, partitions)
-        if pos == -1:
-            print('Error: no space available')
-            return
 
-        partitionToModify.start = pos
-        print('the starting byte will be: ', pos)
-    elif mbr.fit == b'W':
-        print('W')
-        pos = get_worst_fit_position(mbr, partitionToModify, args, partitions)
-        if pos == -1:
-            print('Error: no space available')
-            return
-
-        partitionToModify.start = pos
-        print('the starting byte will be: ', pos)
-    elif mbr.fit == b'B':
-        print('B')
-        pos = get_best_fit_position(mbr, partitionToModify, args, partitions)
-        if pos == -1:
-            print('Error: no space available')
-            return
-
-        partitionToModify.start = pos
-        print('the starting byte will be: ', pos + 1)
-
-    if partitionToModify.size > mbr.size - mbr_full_size:
-        print('Error: partition size must be less than disk size')
-        return
-    with open(args.path, 'rb+') as f:
-        f.seek(0)
-        f.write(mbr.getSerializedMBR())
-        f.close()
-
-    if partitionToModify.type == b'e':
-        new_ebr = EBR()
-        with open(args.path, 'rb+') as f:
-            f.seek(partitionToModify.start)
-            f.write(new_ebr.getSerializedEBR())
-            f.close()
-
-    print('Partition setted!')
-
-
-def get_first_fit_position(mbr, target_partition, args, partitions):
+def get_first_fit_position(size, target_partition, args, partitions):
     final_pos = -1
 
-    blank_spaces = find_empty_spaces(mbr.size, partitions)
+    blank_spaces = find_empty_spaces(size, partitions)
     target_partition.size = calculate_size(args.unit, args.size)
 
     for empty_space in blank_spaces:
@@ -258,8 +285,8 @@ def get_first_fit_position(mbr, target_partition, args, partitions):
     return final_pos
 
 
-def get_best_fit_position(mbr, target_partition, args, partitions):
-    blank_spaces = find_empty_spaces(mbr.size, partitions)
+def get_best_fit_position(size, target_partition, args, partitions):
+    blank_spaces = find_empty_spaces(size, partitions)
     target_partition.size = calculate_size(args.unit, args.size)
 
     filtered_dicts = [d for d in blank_spaces if d['size'] <= target_partition.size]
@@ -270,9 +297,8 @@ def get_best_fit_position(mbr, target_partition, args, partitions):
         return -1
 
 
-def get_worst_fit_position(mbr, target_partition, args, partitions):
-
-    blank_spaces = find_empty_spaces(mbr.size, partitions)
+def get_worst_fit_position(size, target_partition, args, partitions):
+    blank_spaces = find_empty_spaces(size, partitions)
     target_partition.size = calculate_size(args.unit, args.size)
 
     filtered_dicts = [d for d in blank_spaces if d['size'] >= target_partition.size]
@@ -320,7 +346,6 @@ def calculate_size(size_type, value):
 
 
 def delete_space(mbr, partition_index, size_to_delete, disk_size, args, partitions):
-
     if partition_index < 0 or partition_index >= len(partitions):
         print("Invalid partition index.")
         return
@@ -367,7 +392,6 @@ def delete_space(mbr, partition_index, size_to_delete, disk_size, args, partitio
 
 
 def add_space(mbr, partition_index, additional_size, disk_size, args, partitions):
-
     if partition_index < 0 or partition_index >= len(partitions):
         print("Invalid partition index.")
         return
