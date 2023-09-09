@@ -6,6 +6,7 @@ mbr_full_size = 121
 
 
 def fdiskCommand(args, first_parameter):
+
     if args.size <= 0:
         print('Error: size of partition must be greater than 0!')
         return
@@ -15,6 +16,14 @@ def fdiskCommand(args, first_parameter):
     elif first_parameter.startswith('-add'):
         mbr = getMBRBypath(args.path)
         index = 0
+
+        partitions = [
+            {'size': mbr_full_size, 'start_byte': 0},
+            {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
+            {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
+            {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
+            {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
+        ]
 
         if bytes(args.name, 'ascii') == mbr.partition1.name:
             index = 1
@@ -31,10 +40,10 @@ def fdiskCommand(args, first_parameter):
 
         if args.add >= 0:
             additional_size_in_bytes = calculate_size(args.unit, args.add)
-            add_space(mbr, index, additional_size_in_bytes, mbr.size, args)
+            add_space(mbr, index, additional_size_in_bytes, mbr.size, args, partitions)
         else:
             space_to_be_free = calculate_size(args.unit, args.add)
-            delete_space(mbr, index, space_to_be_free * -1, mbr.size, args)
+            delete_space(mbr, index, space_to_be_free * -1, mbr.size, args, partitions)
     else:
         createPartition(args)
         return
@@ -135,6 +144,15 @@ def createPartition(args):
                 first_ebr.size = calculate_size(args.unit, args.size)
                 first_ebr.fit = bytes(args.fit[0], 'ascii')
                 first_ebr.name = bytes(args.name, 'ascii')
+                first_ebr.status = b'1'
+                if first_ebr.start + first_ebr.size > partitionToModify.start + partitionToModify.size:
+                    if first_ebr.next != -1 and first_ebr.start + first_ebr.size > first_ebr.next:
+                        print("Error, logical partition is too big to add in the extended partition")
+                        return
+
+                    print("Error, logical partition is too big to add in the extended partition")
+                    return
+
                 with open(args.path, 'rb+') as f:
                     f.seek(first_ebr.start)
                     f.write(first_ebr.getSerializedEBR())
@@ -147,6 +165,19 @@ def createPartition(args):
                 next_ebr.name = bytes(args.name, 'ascii')
                 next_ebr.fit = bytes(args.fit[0], 'ascii')
                 next_ebr.size = args.size
+                next_ebr.status = b'1'
+                partitions = [
+                    {'size': first_ebr.start+first_ebr.size, 'start_byte': 0},
+                ]
+                first_ebr = get_ebr(partitionToModify.start, args.path)
+                while first_ebr.next != -1:
+                    newDict = {'size': first_ebr.size + first_ebr.getEBRsize(), 'start_byte': first_ebr.start}
+                    partitions.append(newDict)
+                    first_ebr = get_ebr(first_ebr.next, args.path)
+
+                if next_ebr.start + next_ebr.size > partitionToModify.start + partitionToModify.size:
+                    print("Error, logical partition is too big to add in the extended partition")
+
                 with open(args.path, 'rb+') as f:
                     f.seek(first_ebr.start)
                     f.write(first_ebr.getSerializedEBR())
@@ -155,15 +186,21 @@ def createPartition(args):
                     f.close()
                 return
 
-
         else:
             print('No extended partition to add this logical partition was found!')
             return
 
     partitionToModify.type = bytes(args.type, 'ascii')
+    partitions = [
+        {'size': mbr_full_size, 'start_byte': 0},
+        {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
+        {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
+        {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
+        {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
+    ]
     if mbr.fit == b'F':
         print('F')
-        pos = get_first_fit_position(mbr, partitionToModify, args)
+        pos = get_first_fit_position(mbr, partitionToModify, args, partitions)
         if pos == -1:
             print('Error: no space available')
             return
@@ -172,7 +209,7 @@ def createPartition(args):
         print('the starting byte will be: ', pos)
     elif mbr.fit == b'W':
         print('W')
-        pos = get_worst_fit_position(mbr, partitionToModify, args)
+        pos = get_worst_fit_position(mbr, partitionToModify, args, partitions)
         if pos == -1:
             print('Error: no space available')
             return
@@ -181,7 +218,7 @@ def createPartition(args):
         print('the starting byte will be: ', pos)
     elif mbr.fit == b'B':
         print('B')
-        pos = get_best_fit_position(mbr, partitionToModify, args)
+        pos = get_best_fit_position(mbr, partitionToModify, args, partitions)
         if pos == -1:
             print('Error: no space available')
             return
@@ -207,15 +244,9 @@ def createPartition(args):
     print('Partition setted!')
 
 
-def get_first_fit_position(mbr, target_partition, args):
+def get_first_fit_position(mbr, target_partition, args, partitions):
     final_pos = -1
-    partitions = [
-        {'size': mbr_full_size, 'start_byte': 0},
-        {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
-        {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
-        {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
-        {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
-    ]
+
     blank_spaces = find_empty_spaces(mbr.size, partitions)
     target_partition.size = calculate_size(args.unit, args.size)
 
@@ -227,14 +258,7 @@ def get_first_fit_position(mbr, target_partition, args):
     return final_pos
 
 
-def get_best_fit_position(mbr, target_partition, args):
-    partitions = [
-        {'size': mbr_full_size, 'start_byte': 0},
-        {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
-        {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
-        {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
-        {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
-    ]
+def get_best_fit_position(mbr, target_partition, args, partitions):
     blank_spaces = find_empty_spaces(mbr.size, partitions)
     target_partition.size = calculate_size(args.unit, args.size)
 
@@ -246,14 +270,8 @@ def get_best_fit_position(mbr, target_partition, args):
         return -1
 
 
-def get_worst_fit_position(mbr, target_partition, args):
-    partitions = [
-        {'size': mbr_full_size, 'start_byte': 0},
-        {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
-        {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
-        {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
-        {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
-    ]
+def get_worst_fit_position(mbr, target_partition, args, partitions):
+
     blank_spaces = find_empty_spaces(mbr.size, partitions)
     target_partition.size = calculate_size(args.unit, args.size)
 
@@ -301,15 +319,8 @@ def calculate_size(size_type, value):
     return result
 
 
-def delete_space(mbr, partition_index, size_to_delete, disk_size, args):
-    fileIndex = -1
-    partitions = [
-        {'size': mbr_full_size, 'start_byte': 0},
-        {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
-        {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
-        {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
-        {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
-    ]
+def delete_space(mbr, partition_index, size_to_delete, disk_size, args, partitions):
+
     if partition_index < 0 or partition_index >= len(partitions):
         print("Invalid partition index.")
         return
@@ -355,14 +366,7 @@ def delete_space(mbr, partition_index, size_to_delete, disk_size, args):
     print(f'Partition: {args.name}\' size decreased: {size_to_delete} bytes')
 
 
-def add_space(mbr, partition_index, additional_size, disk_size, args):
-    partitions = [
-        {'size': mbr_full_size, 'start_byte': 0},
-        {'size': mbr.partition1.size, 'start_byte': mbr.partition1.start},
-        {'size': mbr.partition2.size, 'start_byte': mbr.partition2.start},
-        {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
-        {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
-    ]
+def add_space(mbr, partition_index, additional_size, disk_size, args, partitions):
 
     if partition_index < 0 or partition_index >= len(partitions):
         print("Invalid partition index.")
