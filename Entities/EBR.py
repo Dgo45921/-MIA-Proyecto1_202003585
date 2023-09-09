@@ -50,3 +50,8 @@ class EBR(ctypes.Structure):
 
     def getEBRsize(self):
         return struct.calcsize(pack_const)
+
+    def equalToDefault(self, partition):
+        return (partition.status == self.status and partition.fit == self.fit and
+                partition.start == self.start and partition.size == self.size and partition.name == self.name
+                and partition.next == self.next)

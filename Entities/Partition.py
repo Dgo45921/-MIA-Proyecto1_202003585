@@ -3,6 +3,7 @@ import struct
 
 pack_const = '< 1s 1s 1s i i 16s'
 
+# 27 bytes
 
 class Partition(ctypes.Structure):
     _fields_ = [('status', ctypes.c_char * 1),
