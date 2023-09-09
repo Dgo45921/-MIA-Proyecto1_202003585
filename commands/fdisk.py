@@ -124,28 +124,38 @@ def createPartition(args):
 
         if foundExtended:
             first_ebr = get_ebr(partitionToModify.start, args.path)
-            default_ebr = EBR()
-            first_partition = False
-            if first_ebr.equalToDefault(default_ebr):
-                first_partition = True
-
+            first_partition = first_ebr.equalToDefault(EBR())
             pointer = partitionToModify.start
             while first_ebr.next != -1:
                 first_ebr = get_ebr(first_ebr.next, args.path)
                 pointer += first_ebr.size
-            first_ebr.name = bytes(args.name, 'ascii')
+
             if first_partition:
                 first_ebr.start = pointer
-            else:
-                first_ebr.start = pointer + first_ebr.size + first_ebr.getEBRsize()
-            first_ebr.size = calculate_size(args.unit, args.size)
-            first_ebr.fit = bytes(args.fit[0], 'ascii')
+                first_ebr.size = calculate_size(args.unit, args.size)
+                first_ebr.fit = bytes(args.fit[0], 'ascii')
+                first_ebr.name = bytes(args.name, 'ascii')
+                with open(args.path, 'rb+') as f:
+                    f.seek(first_ebr.start)
+                    f.write(first_ebr.getSerializedEBR())
+                    return
 
-            with open(args.path, 'rb+') as f:
-                f.seek(first_ebr.start)
-                f.write(first_ebr.getSerializedEBR())
-                f.close()
-            return
+            else:
+                next_ebr = EBR()
+                next_ebr.start = first_ebr.start + first_ebr.getEBRsize() + first_ebr.size
+                first_ebr.next = next_ebr.start
+                next_ebr.name = bytes(args.name, 'ascii')
+                next_ebr.fit = bytes(args.fit[0], 'ascii')
+                next_ebr.size = args.size
+                with open(args.path, 'rb+') as f:
+                    f.seek(first_ebr.start)
+                    f.write(first_ebr.getSerializedEBR())
+                    f.seek(next_ebr.start)
+                    f.write(next_ebr.getSerializedEBR())
+                    f.close()
+                return
+
+
         else:
             print('No extended partition to add this logical partition was found!')
             return
