@@ -145,6 +145,7 @@ def createPartition(args):
             {'size': mbr.partition3.size, 'start_byte': mbr.partition3.start},
             {'size': mbr.partition4.size, 'start_byte': mbr.partition4.start}
         ]
+        partitionToModify.size = calculate_size(args.unit, args.size)
         if mbr.fit == b'F':
             print('F')
             pos = get_first_fit_position(mbr.size, partitionToModify, args, partitions)
@@ -255,6 +256,51 @@ def createPartition(args):
                 next_ebr.size = args.size
                 next_ebr.status = b'1'
 
+                # -------------------------------------------------------------------
+                febr = get_ebr(partitionToModify.start, args.path)
+                partitions = [
+                    {'size': febr.size + febr.getEBRsize(), 'start_byte': 0}
+                ]
+
+                while febr.next != -1:
+                    febr = get_ebr(febr.next, args.path)
+                    newDict = {'size': febr.size + febr.getEBRsize(), 'start_byte': febr.start}
+                    partitions.append(newDict)
+
+
+                if febr.fit == b'f':
+                    print('F')
+                    pos = get_first_fit_position(partitionToModify.size, next_ebr, args, partitions)
+                    if pos == -1:
+                        print('Error: no space available')
+                        return
+                    next_ebr.start = partitionToModify.start + pos + next_ebr.getEBRsize()
+
+                    print('the starting byte will be: ', pos)
+                elif febr.fit == b'w':
+                    print('W')
+                    pos = get_worst_fit_position(partitionToModify.size, next_ebr, args, partitions)
+                    if pos == -1:
+                        print('Error: no space available')
+                        return
+                    next_ebr.start = partitionToModify.start + pos + next_ebr.getEBRsize()
+
+
+                    print('the starting byte will be: ', pos)
+                elif febr.fit == b'b':
+                    print('B')
+                    pos = get_best_fit_position(partitionToModify.size, next_ebr, args, partitions)
+                    if pos == -1:
+                        print('Error: no space available')
+                        return
+                    next_ebr.start = partitionToModify.start + pos + next_ebr.getEBRsize()
+
+
+                    print('the starting byte will be: ', pos + 1)
+
+                # ----------------------------------------------------------------------
+
+
                 if next_ebr.start + next_ebr.size > partitionToModify.start + partitionToModify.size:
                     print("Error, logical partition is too big to add in the extended partition")
 
@@ -275,7 +321,6 @@ def get_first_fit_position(size, target_partition, args, partitions):
     final_pos = -1
 
     blank_spaces = find_empty_spaces(size, partitions)
-    target_partition.size = calculate_size(args.unit, args.size)
 
     for empty_space in blank_spaces:
         if empty_space['size'] >= target_partition.size:
@@ -287,9 +332,8 @@ def get_first_fit_position(size, target_partition, args, partitions):
 
 def get_best_fit_position(size, target_partition, args, partitions):
     blank_spaces = find_empty_spaces(size, partitions)
-    target_partition.size = calculate_size(args.unit, args.size)
 
-    filtered_dicts = [d for d in blank_spaces if d['size'] <= target_partition.size]
+    filtered_dicts = [d for d in blank_spaces if d['size'] >= target_partition.size]
     if filtered_dicts:
         dict_with_smallest_size = min(filtered_dicts, key=lambda x: x['size'])
         return dict_with_smallest_size['start_byte']
@@ -299,7 +343,6 @@ def get_best_fit_position(size, target_partition, args, partitions):
 
 def get_worst_fit_position(size, target_partition, args, partitions):
     blank_spaces = find_empty_spaces(size, partitions)
-    target_partition.size = calculate_size(args.unit, args.size)
 
     filtered_dicts = [d for d in blank_spaces if d['size'] >= target_partition.size]
     if filtered_dicts:
