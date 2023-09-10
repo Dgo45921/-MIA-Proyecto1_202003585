@@ -33,16 +33,88 @@ def fdiskCommand(args, first_parameter):
         elif bytes(args.name, 'ascii') == mbr.partition4.name:
             index = 4
 
-        if index == 0:
+        # ----------------------------------------------
+        partitionToModify = None
+        foundExtended = False
+        if b'e' == mbr.partition1.type:
+            partitionToModify = mbr.partition1
+            foundExtended = True
+
+        elif b'e' == mbr.partition2.type:
+            partitionToModify = mbr.partition2
+            foundExtended = True
+        elif b'e' == mbr.partition3.type:
+            partitionToModify = mbr.partition3
+            foundExtended = True
+        elif b'e' == mbr.partition4.type:
+            partitionToModify = mbr.partition4
+            foundExtended = True
+
+        if index == 0 and not foundExtended:
             print('Error: Partition not found!')
             return
 
-        if args.add >= 0:
-            additional_size_in_bytes = calculate_size(args.unit, args.add)
-            add_space(mbr, index, additional_size_in_bytes, mbr.size, args, partitions)
+        if foundExtended:
+            first_ebr = get_ebr(partitionToModify.start, args.path)
+            prev_ebr = None
+            while first_ebr.next != -1:
+                if first_ebr.name == bytes(args.name, 'ascii'):
+                    break
+                prev_ebr = first_ebr
+                first_ebr = get_ebr(first_ebr.next, args.path)
+
+            if first_ebr.name != bytes(args.name, 'ascii'):
+                print('Not found partition!')
+                return
+            if args.add < 0:
+                if first_ebr.start == partitionToModify.start and prev_ebr is None:
+                    with open(args.path, 'rb+') as f:
+                        f.seek(first_ebr.start + first_ebr.getEBRsize())
+                        f.write(b'\x00' * first_ebr.size)
+                        f.seek(first_ebr.start)
+                        first_ebr.size = 0
+                        f.write(first_ebr.getSerializedEBR())
+                    return
+
+                else:
+                    prev_ebr.next = first_ebr.next
+                    with open(args.path, 'rb+') as f:
+
+                        f.seek(first_ebr.start)
+                        f.write(b'\x00' * (first_ebr.size + first_ebr.getEBRsize()))
+                        f.seek(prev_ebr.start)
+                        f.write(prev_ebr.getSerializedEBR())
+                    return
+            else:
+                if first_ebr.next == -1:
+                    if first_ebr.size + first_ebr.getSerializedEBR() + first_ebr.start + args.size < partitionToModify.start + partitionToModify.size:
+                        first_ebr.size += args.size
+                        with open(args.path, 'rb+') as f:
+                            f.seek(first_ebr.start)
+                            f.write(first_ebr.getSerializedEBR())
+                            f.close()
+                        print("Logical partition size added")
+                        return
+                else:
+                    next_ebr = get_ebr(first_ebr.next, args.path)
+                    if first_ebr.size + first_ebr.getSerializedEBR() + first_ebr.start + args.size < next_ebr.start:
+                        first_ebr.size += args.size
+                        with open(args.path, 'rb+') as f:
+                            f.seek(first_ebr.start)
+                            f.write(first_ebr.getSerializedEBR())
+                            f.close()
+
+                        print("Logical partition size added")
+                        return
+
+        # ----------------------------------------------
         else:
-            space_to_be_free = calculate_size(args.unit, args.add)
-            delete_space(mbr, index, space_to_be_free * -1, mbr.size, args, partitions)
+            if args.add >= 0:
+                additional_size_in_bytes = calculate_size(args.unit, args.add)
+                add_space(mbr, index, additional_size_in_bytes, mbr.size, args, partitions)
+            else:
+                space_to_be_free = calculate_size(args.unit, args.add)
+                delete_space(mbr, index, space_to_be_free * -1, mbr.size, args, partitions)
     else:
         createPartition(args)
         return
@@ -267,7 +339,6 @@ def createPartition(args):
                     newDict = {'size': febr.size + febr.getEBRsize(), 'start_byte': febr.start}
                     partitions.append(newDict)
 
-
                 if febr.fit == b'f':
                     print('F')
                     pos = get_first_fit_position(partitionToModify.size, next_ebr, args, partitions)
@@ -285,7 +356,6 @@ def createPartition(args):
                         return
                     next_ebr.start = partitionToModify.start + pos + next_ebr.getEBRsize()
 
-
                     print('the starting byte will be: ', pos)
                 elif febr.fit == b'b':
                     print('B')
@@ -295,11 +365,9 @@ def createPartition(args):
                         return
                     next_ebr.start = partitionToModify.start + pos + next_ebr.getEBRsize()
 
-
                     print('the starting byte will be: ', pos + 1)
 
                 # ----------------------------------------------------------------------
-
 
                 if next_ebr.start + next_ebr.size > partitionToModify.start + partitionToModify.size:
                     print("Error, logical partition is too big to add in the extended partition")
@@ -389,6 +457,52 @@ def calculate_size(size_type, value):
 
 
 def delete_space(mbr, partition_index, size_to_delete, disk_size, args, partitions):
+    if partition_index < 0 or partition_index >= len(partitions):
+        print("Invalid partition index.")
+        return
+
+    partition = partitions[partition_index]
+
+    # Ignore undefined partitions
+    if partition['size'] == 0:
+        print("Cannot delete space from an undefined partition.")
+        return
+
+    if size_to_delete < partition['size']:
+        fileIndex = partition['start_byte'] + (partition['size'] - size_to_delete)
+        partition['size'] -= size_to_delete
+    else:
+        print('cannot delete more of the size partition')
+        return
+
+    if partition['start_byte'] + partition['size'] > disk_size:
+        print("Partition size after deletion exceeds disk size.")
+        return
+
+    mbr.partition1.size = partitions[1]['size']
+    mbr.partition1.start = partitions[1]['start_byte']
+
+    mbr.partition2.size = partitions[2]['size']
+    mbr.partition2.start = partitions[2]['start_byte']
+
+    mbr.partition3.size = partitions[3]['size']
+    mbr.partition3.start = partitions[3]['start_byte']
+
+    mbr.partition4.size = partitions[4]['size']
+    mbr.partition4.start = partitions[4]['start_byte']
+
+    with open(args.path, 'rb+') as f:
+        f.seek(0)
+        f.write(mbr.getSerializedMBR())
+        f.seek(fileIndex)
+        f.write(b'\x00' * size_to_delete)
+
+        f.close()
+
+    print(f'Partition: {args.name}\' size decreased: {size_to_delete} bytes')
+
+
+def delete_space_logical(mbr, partition_index, size_to_delete, disk_size, args, partitions):
     if partition_index < 0 or partition_index >= len(partitions):
         print("Invalid partition index.")
         return
