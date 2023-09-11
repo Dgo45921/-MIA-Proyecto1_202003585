@@ -28,6 +28,7 @@ def mount(path, name):
             return
 
         value_to_check = found_partition['id']
+        found_partition['disk_path'] = path
 
         exists = any(partition['id'] == value_to_check for partition in mounted_partitions)
 
@@ -81,3 +82,13 @@ def get_ebr(intial_pos, path):
         f.close()
 
     return ebr
+
+
+def get_mounted_partition(id_):
+    matching_partition = next((partition for partition in mounted_partitions if partition['id'] == id_),
+                              None)
+
+    if matching_partition is not None:
+        return matching_partition
+    else:
+        return None

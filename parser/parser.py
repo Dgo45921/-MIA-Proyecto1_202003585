@@ -3,7 +3,7 @@ import shlex
 
 import commands
 from commands.mkdisk import mkdiskCommand
-from commands.rep import repCommand
+from commands.rep import rep_mbr
 from commands.fdisk import fdiskCommand
 from commands.rmdisk import rmdisk
 from commands.mount import mount
@@ -30,8 +30,13 @@ execute_parser.add_argument("-path", default="")
 execute_parser.set_defaults(which='execute')
 
 # Parser for the rep command
+# TODO RUTA ARGUMENT
 rep_parser = subparsers.add_parser('rep')
-rep_parser.add_argument("-path", default="")
+rep_parser.add_argument("-name", type=str.lower, required=True, choices=['mbr', 'disk', 'inode', 'journaling', 'block'
+                        , 'bm_inode', 'bm_block', 'tree', 'sb', 'file', 'ls'])
+rep_parser.add_argument("-path", required=True)
+rep_parser.add_argument("-id", required=True)
+rep_parser.add_argument("-ruta")
 rep_parser.set_defaults(which='rep')
 
 fdisk_parser = subparsers.add_parser('fdisk', help='Create a partition')
@@ -52,7 +57,6 @@ rmdisk_parser = subparsers.add_parser('rmdisk', help='Deletes a disk')
 rmdisk_parser.add_argument("-path", type=str, help="path of the disk", required=True)
 rmdisk_parser.set_defaults(which='rmdisk')
 
-
 # Parser for the mount command
 mount_parser = subparsers.add_parser('mount')
 
@@ -62,7 +66,6 @@ mount_parser.add_argument("-name", required=True)
 
 # Set default command
 mount_parser.set_defaults(which='mount')
-
 
 # Parser for the unmount command
 unmount_parser = subparsers.add_parser('unmount')
@@ -91,7 +94,9 @@ def parseString(command):
         elif args.which == 'execute':
             executeCommand(args)
         elif args.which == 'rep':
-            commands.rep.repCommand(args)
+            if args.name == 'mbr':
+                rep_mbr(args.id, args.path)
+
         elif args.which == 'fdisk':
             fdiskCommand(args, shlex.split(newStringWithLowers)[1])
         elif args.which == 'rmdisk':
