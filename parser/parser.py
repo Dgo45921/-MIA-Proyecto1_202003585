@@ -6,6 +6,7 @@ from commands.mkdisk import mkdiskCommand
 from commands.rep import repCommand
 from commands.fdisk import fdiskCommand
 from commands.rmdisk import rmdisk
+from commands.mount import mount
 
 parser = argparse.ArgumentParser(description="Command Parser", allow_abbrev=False)
 subparsers = parser.add_subparsers(help='Available commands')
@@ -51,6 +52,17 @@ rmdisk_parser.add_argument("-path", type=str, help="path of the disk", required=
 rmdisk_parser.set_defaults(which='rmdisk')
 
 
+# Parser for the mkdisk command
+mount_parser = subparsers.add_parser('mount', help='Create a disk')
+
+# Add arguments for mount command
+mount_parser.add_argument("-path", required=True)
+mount_parser.add_argument("-name", required=True)
+
+# Set default command
+mount_parser.set_defaults(which='mount')
+
+
 def pivote(command):
     if validate_command(command):
         parseString(command)
@@ -70,9 +82,11 @@ def parseString(command):
         elif args.which == 'rep':
             commands.rep.repCommand(args)
         elif args.which == 'fdisk':
-            fdiskCommand(args,shlex.split(newStringWithLowers)[1])
+            fdiskCommand(args, shlex.split(newStringWithLowers)[1])
         elif args.which == 'rmdisk':
             rmdisk(args.path)
+        elif args.which == 'mount':
+            mount(args.path, args.name)
 
     except argparse.ArgumentError as _:
         print("Error: one argument was not expected")
