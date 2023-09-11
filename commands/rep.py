@@ -56,12 +56,13 @@ def rep_mbr(id_, output_path):
         f.close()
 
     if file_name.endswith('.jpg'):
-        pass
+        os.system("dot -Tjpg " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
     elif file_name.endswith('.png'):
         os.system("dot -Tpng " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
     elif file_name.endswith('.pdf'):
-        pass
+        os.system("dot -Tpdf " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
 
+    os.system('rm ' + directory + "/" + file_name.split('.')[0] + '.dot')
 
 
 def get_mbr_viz_code(mbr, partitions, path):
