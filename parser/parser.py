@@ -7,6 +7,7 @@ from commands.rep import repCommand
 from commands.fdisk import fdiskCommand
 from commands.rmdisk import rmdisk
 from commands.mount import mount
+from commands.unmount import unmount
 
 parser = argparse.ArgumentParser(description="Command Parser", allow_abbrev=False)
 subparsers = parser.add_subparsers(help='Available commands')
@@ -52,8 +53,8 @@ rmdisk_parser.add_argument("-path", type=str, help="path of the disk", required=
 rmdisk_parser.set_defaults(which='rmdisk')
 
 
-# Parser for the mkdisk command
-mount_parser = subparsers.add_parser('mount', help='Create a disk')
+# Parser for the mount command
+mount_parser = subparsers.add_parser('mount')
 
 # Add arguments for mount command
 mount_parser.add_argument("-path", required=True)
@@ -61,6 +62,16 @@ mount_parser.add_argument("-name", required=True)
 
 # Set default command
 mount_parser.set_defaults(which='mount')
+
+
+# Parser for the unmount command
+unmount_parser = subparsers.add_parser('unmount')
+
+# Add arguments for unmount command
+unmount_parser.add_argument("-id", required=True)
+
+# Set default command
+unmount_parser.set_defaults(which='unmount')
 
 
 def pivote(command):
@@ -87,6 +98,8 @@ def parseString(command):
             rmdisk(args.path)
         elif args.which == 'mount':
             mount(args.path, args.name)
+        elif args.which == 'unmount':
+            unmount(args.id)
 
     except argparse.ArgumentError as _:
         print("Error: one argument was not expected")
