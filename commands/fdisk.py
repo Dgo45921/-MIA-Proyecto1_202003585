@@ -56,35 +56,25 @@ def fdiskCommand(args, first_parameter):
 
         if foundExtended:
             first_ebr = get_ebr(partitionToModify.start, args.path)
-            prev_ebr = None
             while first_ebr.next != -1:
                 if first_ebr.name == bytes(args.name, 'ascii'):
                     break
-                prev_ebr = first_ebr
                 first_ebr = get_ebr(first_ebr.next, args.path)
 
             if first_ebr.name != bytes(args.name, 'ascii'):
                 print('Not found partition!')
                 return
             if args.add < 0:
-                if first_ebr.start == partitionToModify.start and prev_ebr is None:
-                    with open(args.path, 'rb+') as f:
-                        f.seek(first_ebr.start + first_ebr.getEBRsize())
-                        f.write(b'\x00' * first_ebr.size)
-                        f.seek(first_ebr.start)
-                        first_ebr.size = 0
-                        f.write(first_ebr.getSerializedEBR())
+                first_ebr.size = first_ebr.size - (args.add * -1)
+                if first_ebr.size < 0:
+                    print('Partition size cannot be negative!')
                     return
 
-                else:
-                    prev_ebr.next = first_ebr.next
-                    with open(args.path, 'rb+') as f:
+                with open(args.path, 'rb+') as f:
+                    f.seek(first_ebr.start)
+                    f.write(first_ebr.getSerializedEBR())
+                return
 
-                        f.seek(first_ebr.start)
-                        f.write(b'\x00' * (first_ebr.size + first_ebr.getEBRsize()))
-                        f.seek(prev_ebr.start)
-                        f.write(prev_ebr.getSerializedEBR())
-                    return
             else:
                 if first_ebr.next == -1:
                     if first_ebr.size + first_ebr.getSerializedEBR() + first_ebr.start + args.size < partitionToModify.start + partitionToModify.size:
@@ -124,7 +114,7 @@ def deletePartition(args):
     mbr = getMBRBypath(args.path)
     partitionToModify = None
     byes_to_write = 0
-
+    foundExtended = False
     if bytes(args.name, 'ascii') == mbr.partition1.name:
         partitionToModify = mbr.partition1
         byes_to_write = mbr.partition1.size
@@ -141,17 +131,70 @@ def deletePartition(args):
         partitionToModify = mbr.partition4
         byes_to_write = mbr.partition4.size
         mbr.partition4 = Entities.Partition.Partition()
+        # ------------------------------------------------------------------
     if partitionToModify is None:
-        print('Error: partition not found!')
-        return
+        if b'e' == mbr.partition1.type:
+            partitionToModify = mbr.partition1
+            foundExtended = True
 
-    with open(args.path, 'rb+') as f:
-        f.seek(partitionToModify.start)
-        f.write(b'\x00' * byes_to_write)
-        f.seek(0)
-        f.write(mbr.getSerializedMBR())
-        f.close()
-    print('Partition deleted!')
+        elif b'e' == mbr.partition2.type:
+            partitionToModify = mbr.partition2
+            foundExtended = True
+        elif b'e' == mbr.partition3.type:
+            partitionToModify = mbr.partition3
+            foundExtended = True
+        elif b'e' == mbr.partition4.type:
+            partitionToModify = mbr.partition4
+            foundExtended = True
+
+        if not foundExtended:
+            print('Error: Partition not found!')
+            return
+
+        else:
+            first_ebr = get_ebr(partitionToModify.start, args.path)
+            prev_ebr = None
+            while first_ebr.next != -1:
+                if first_ebr.name == bytes(args.name, 'ascii'):
+                    break
+                prev_ebr = first_ebr
+                first_ebr = get_ebr(first_ebr.next, args.path)
+
+            if first_ebr.name != bytes(args.name, 'ascii'):
+                print('Not found partition!')
+                return
+
+            if first_ebr.start == partitionToModify.start and prev_ebr is None:
+                with open(args.path, 'rb+') as f:
+                    f.seek(first_ebr.start + first_ebr.getEBRsize())
+                    f.write(b'\x00' * first_ebr.size)
+                    f.seek(first_ebr.start)
+                    first_ebr.size = 0
+                    first_ebr.name = b'\x30' * 16
+                    f.write(first_ebr.getSerializedEBR())
+                    print('Logical partition deleted!')
+                return
+
+            else:
+                prev_ebr.next = first_ebr.next
+                with open(args.path, 'rb+') as f:
+
+                    f.seek(first_ebr.start)
+                    f.write(b'\x00' * (first_ebr.size + first_ebr.getEBRsize()))
+                    f.seek(prev_ebr.start)
+                    f.write(prev_ebr.getSerializedEBR())
+                    print('Logical partition deleted!')
+                return
+
+        return
+    else:
+        with open(args.path, 'rb+') as f:
+            f.seek(partitionToModify.start)
+            f.write(b'\x00' * byes_to_write)
+            f.seek(0)
+            f.write(mbr.getSerializedMBR())
+            f.close()
+        print('Partition deleted!')
 
 
 def createPartition(args):
@@ -256,6 +299,7 @@ def createPartition(args):
 
         if partitionToModify.type == b'e':
             new_ebr = EBR()
+            new_ebr.start = partitionToModify.start
             with open(args.path, 'rb+') as f:
                 f.seek(partitionToModify.start)
                 f.write(new_ebr.getSerializedEBR())
@@ -287,37 +331,73 @@ def createPartition(args):
 
         if foundExtended:
             first_ebr = get_ebr(partitionToModify.start, args.path)
-            first_partition = first_ebr.equalToDefault(EBR())
+
+            first_partition = first_ebr.start == partitionToModify.start and first_ebr.name == b'\x30' * 16
             pointer = partitionToModify.start
             while first_ebr.next != -1:
+                first_ebr = get_ebr(first_ebr.next, args.path)
                 if first_ebr.name == bytes(args.name, 'ascii'):
                     print('Error, logical partition has the same name of another partition!')
                     return
-                first_ebr = get_ebr(first_ebr.next, args.path)
-                pointer += first_ebr.size
-
-            while first_ebr.next != -1:
-                first_ebr = get_ebr(first_ebr.next, args.path)
                 pointer += first_ebr.size
 
             if first_partition:
-                first_ebr.start = pointer
+                first_ebr = get_ebr(partitionToModify.start, args.path)
+                first_ebr.start = partitionToModify.start
                 first_ebr.size = calculate_size(args.unit, args.size)
                 first_ebr.fit = bytes(args.fit[0], 'ascii')
                 first_ebr.name = bytes(args.name, 'ascii')
                 first_ebr.status = b'1'
-                if first_ebr.start + first_ebr.size > partitionToModify.start + partitionToModify.size:
-                    if first_ebr.next != -1 and first_ebr.start + first_ebr.size > first_ebr.next:
-                        print("Error, logical partition is too big to add in the extended partition")
-                        return
+                # -----------------------------
+                febr = get_ebr(partitionToModify.start, args.path)
+                partitions = [
+                    {'size': febr.size, 'start_byte': 0}
+                ]
 
-                    print("Error, logical partition is too big to add in the extended partition")
-                    return
+                while febr.next != -1:
+                    febr = get_ebr(febr.next, args.path)
+                    newDict = {'size': febr.size + febr.getEBRsize(),
+                               'start_byte': febr.start - partitionToModify.start}
+                    partitions.append(newDict)
+
+                if partitionToModify.fit == b'f':
+                    print('F')
+                    pos = get_first_fit_position(partitionToModify.size, first_ebr, args, partitions)
+                    if pos == -1:
+                        print('Error: no space available')
+                        return
+                    first_ebr.start = partitionToModify.start + pos
+
+                    print('the starting byte will be: ', partitionToModify.start + pos)
+                elif partitionToModify.fit == b'w':
+                    print('W')
+                    pos = get_worst_fit_position(partitionToModify.size, first_ebr, args, partitions)
+                    if pos == -1:
+                        print('Error: no space available')
+                        return
+                    first_ebr.start = partitionToModify.start + pos
+
+                    print('the starting byte will be: ', partitionToModify.start + pos)
+                elif partitionToModify.fit == b'b':
+                    print('B')
+                    pos = get_best_fit_position(partitionToModify.size, first_ebr, args, partitions)
+                    if pos == -1:
+                        print('Error: no space available')
+                        return
+                    first_ebr.start = partitionToModify.start + pos
+
+                    print('the starting byte will be: ', partitionToModify.start + pos)
+
 
                 with open(args.path, 'rb+') as f:
                     f.seek(first_ebr.start)
                     f.write(first_ebr.getSerializedEBR())
+                    print('Partition setted!')
                     return
+
+
+                # --------------------------------
+
 
             else:
                 next_ebr = EBR()
@@ -336,36 +416,37 @@ def createPartition(args):
 
                 while febr.next != -1:
                     febr = get_ebr(febr.next, args.path)
-                    newDict = {'size': febr.size + febr.getEBRsize(), 'start_byte': febr.start}
+                    newDict = {'size': febr.size + febr.getEBRsize(),
+                               'start_byte': febr.start - partitionToModify.start}
                     partitions.append(newDict)
 
-                if febr.fit == b'f':
+                if partitionToModify.fit == b'f':
                     print('F')
                     pos = get_first_fit_position(partitionToModify.size, next_ebr, args, partitions)
                     if pos == -1:
                         print('Error: no space available')
                         return
-                    next_ebr.start = partitionToModify.start + pos + next_ebr.getEBRsize()
+                    next_ebr.start = partitionToModify.start + pos
 
-                    print('the starting byte will be: ', pos)
-                elif febr.fit == b'w':
+                    print('the starting byte will be: ', partitionToModify.start + pos)
+                elif partitionToModify.fit == b'w':
                     print('W')
                     pos = get_worst_fit_position(partitionToModify.size, next_ebr, args, partitions)
                     if pos == -1:
                         print('Error: no space available')
                         return
-                    next_ebr.start = partitionToModify.start + pos + next_ebr.getEBRsize()
+                    next_ebr.start = partitionToModify.start + pos
 
-                    print('the starting byte will be: ', pos)
-                elif febr.fit == b'b':
+                    print('the starting byte will be: ', partitionToModify.start + pos)
+                elif partitionToModify.fit == b'b':
                     print('B')
                     pos = get_best_fit_position(partitionToModify.size, next_ebr, args, partitions)
                     if pos == -1:
                         print('Error: no space available')
                         return
-                    next_ebr.start = partitionToModify.start + pos + next_ebr.getEBRsize()
+                    next_ebr.start = partitionToModify.start + pos
 
-                    print('the starting byte will be: ', pos + 1)
+                    print('the starting byte will be: ', partitionToModify.start + pos)
 
                 # ----------------------------------------------------------------------
 
@@ -378,6 +459,7 @@ def createPartition(args):
                     f.seek(next_ebr.start)
                     f.write(next_ebr.getSerializedEBR())
                     f.close()
+                    print('Partition setted!')
                 return
 
         else:
