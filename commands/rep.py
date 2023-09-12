@@ -30,6 +30,9 @@ def repCommand(args):
 
 
 def rep_mbr(id_, output_path):
+    if " " in output_path:
+        '"' + output_path + '"'
+
     if not (output_path.endswith(".jpg") or output_path.endswith(".png") or output_path.endswith('.pdf')):
         print('Error, output extension must be .jpg, .png or .pdf')
 
@@ -57,17 +60,20 @@ def rep_mbr(id_, output_path):
         f.close()
 
     if file_name.endswith('.jpg'):
-        os.system("dot -Tjpg " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
+        os.system("dot -Tjpg \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+output_path+'"')
     elif file_name.endswith('.png'):
-        os.system("dot -Tpng " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
+        os.system("dot -Tpng \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+ output_path+'"')
     elif file_name.endswith('.pdf'):
-        os.system("dot -Tpdf " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
+        os.system("dot -Tpdf \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+ output_path+'"')
 
-    os.system('rm ' + directory + "/" + file_name.split('.')[0] + '.dot')
+    os.system('rm \"' + directory + "/" + file_name.split('.')[0] + '.dot\"')
     print(f'mbr report generated in{directory}')
 
 
 def rep_disk(id_, output_path):
+    if " " in output_path:
+        '"' + output_path + '"'
+
     if not (output_path.endswith(".jpg") or output_path.endswith(".png") or output_path.endswith('.pdf')):
         print('Error, output extension must be .jpg, .png or .pdf')
 
@@ -100,17 +106,19 @@ def rep_disk(id_, output_path):
     blank_spaces = find_empty_spaces(found_mbr.size, partitions_spaces)
     partitions_spaces.pop(0)
     code = get_disk_viz_code(found_mbr, partitions_spaces, blank_spaces, partitions, mounted_partition['disk_path'])
-    print(code)
+    with open(directory + "/" + file_name.split('.')[0] + '.dot', 'w') as f:
+        f.write(code)
+        f.close()
 
-    # if file_name.endswith('.jpg'):
-    #     os.system("dot -Tjpg " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
-    # elif file_name.endswith('.png'):
-    #     os.system("dot -Tpng " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
-    # elif file_name.endswith('.pdf'):
-    #     os.system("dot -Tpdf " + directory + "/" + file_name.split('.')[0] + '.dot' + " -o " + output_path)
-    #
-    # os.system('rm ' + directory + "/" + file_name.split('.')[0] + '.dot')
-    # print(f'mbr report generated in{directory}')
+    if file_name.endswith('.jpg'):
+        os.system("dot -Tjpg \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+ output_path+'"' )
+    elif file_name.endswith('.png'):
+        os.system("dot -Tpng \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " +'"'+ output_path+'"')
+    elif file_name.endswith('.pdf'):
+        os.system("dot -Tpdf\"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+output_path+'"')
+
+    os.system('rm "' + directory + "/" + file_name.split('.')[0] + '.dot\"')
+    print(f'disk report generated in{directory}')
 
 
 def get_disk_viz_code(mbr, spaces_partitions, blank_spaces, partitions, path):
@@ -128,7 +136,6 @@ def get_disk_viz_code(mbr, spaces_partitions, blank_spaces, partitions, path):
 
     disk_map = sorted(chain(disk_free, spaces_p), key=lambda x: x['start_byte'])
 
-    print(disk_map)
 
     for i in range(len(disk_map)):
         val = check_if_blank_space_starts(blank_spaces, disk_map[i]['start_byte'])
