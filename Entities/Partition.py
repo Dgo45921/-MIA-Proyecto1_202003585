@@ -55,3 +55,7 @@ class Partition(ctypes.Structure):
     def makeDefault(self):
         self = Partition()
 
+    def getPartitionSize(self):
+        return struct.calcsize(pack_const)
+
+

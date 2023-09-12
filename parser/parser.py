@@ -3,7 +3,7 @@ import shlex
 
 import commands
 from commands.mkdisk import mkdiskCommand
-from commands.rep import rep_mbr
+from commands.rep import rep_mbr, rep_disk
 from commands.fdisk import fdiskCommand
 from commands.rmdisk import rmdisk
 from commands.mount import mount
@@ -96,6 +96,8 @@ def parseString(command):
         elif args.which == 'rep':
             if args.name == 'mbr':
                 rep_mbr(args.id, args.path)
+            if args.name == 'disk':
+                rep_disk(args.id, args.path)
 
         elif args.which == 'fdisk':
             fdiskCommand(args, shlex.split(newStringWithLowers)[1])
