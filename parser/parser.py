@@ -3,6 +3,7 @@ import shlex
 
 import commands
 from commands.mkdisk import mkdiskCommand
+from commands.mkfs import mkfs
 from commands.rep import rep_mbr, rep_disk
 from commands.fdisk import fdiskCommand
 from commands.rmdisk import rmdisk
@@ -33,7 +34,7 @@ execute_parser.set_defaults(which='execute')
 # TODO RUTA ARGUMENT
 rep_parser = subparsers.add_parser('rep')
 rep_parser.add_argument("-name", type=str.lower, required=True, choices=['mbr', 'disk', 'inode', 'journaling', 'block'
-                        , 'bm_inode', 'bm_block', 'tree', 'sb', 'file', 'ls'])
+    , 'bm_inode', 'bm_block', 'tree', 'sb', 'file', 'ls'])
 rep_parser.add_argument("-path", required=True)
 rep_parser.add_argument("-id", required=True)
 rep_parser.add_argument("-ruta")
@@ -77,6 +78,17 @@ unmount_parser.add_argument("-id", required=True)
 unmount_parser.set_defaults(which='unmount')
 
 
+# mkfs parser
+
+mkfs_parser = subparsers.add_parser('mkfs')
+
+# Add arguments for mkfs command
+mkfs_parser.add_argument("-id", type=str, required=True)
+mkfs_parser.add_argument("-type", type=str.lower, default="full", choices=['full'])
+mkfs_parser.add_argument("-fs", type=str.lower, choices=['2fs', '3fs'], default='2fs')
+mkfs_parser.set_defaults(which='mkfs')
+
+
 def pivote(command):
     if validate_command(command):
         parseString(command)
@@ -107,6 +119,8 @@ def parseString(command):
             mount(args.path, args.name)
         elif args.which == 'unmount':
             unmount(args.id)
+        elif args.which == 'mkfs':
+            mkfs(args.id, args.fs)
 
     except argparse.ArgumentError as _:
         print("Error: one argument was not expected")
