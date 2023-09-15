@@ -4,7 +4,7 @@ import shlex
 import commands
 from commands.mkdisk import mkdiskCommand
 from commands.mkfs import mkfs
-from commands.rep import rep_mbr, rep_disk
+from commands.rep import rep_mbr, rep_disk, rep_sb
 from commands.fdisk import fdiskCommand
 from commands.rmdisk import rmdisk
 from commands.mount import mount
@@ -12,6 +12,11 @@ from commands.unmount import unmount
 
 parser = argparse.ArgumentParser(description="Command Parser", allow_abbrev=False)
 subparsers = parser.add_subparsers(help='Available commands')
+
+
+# Parser for the pause command
+pause_parser = subparsers.add_parser('pause')
+pause_parser.set_defaults(which='pause')
 
 # Parser for the mkdisk command
 mkdisk_parser = subparsers.add_parser('mkdisk', help='Create a disk')
@@ -31,7 +36,6 @@ execute_parser.add_argument("-path", default="")
 execute_parser.set_defaults(which='execute')
 
 # Parser for the rep command
-# TODO RUTA ARGUMENT
 rep_parser = subparsers.add_parser('rep')
 rep_parser.add_argument("-name", type=str.lower, required=True, choices=['mbr', 'disk', 'inode', 'journaling', 'block'
     , 'bm_inode', 'bm_block', 'tree', 'sb', 'file', 'ls'])
@@ -108,8 +112,10 @@ def parseString(command):
         elif args.which == 'rep':
             if args.name == 'mbr':
                 rep_mbr(args.id, args.path)
-            if args.name == 'disk':
+            elif args.name == 'disk':
                 rep_disk(args.id, args.path)
+            elif args.name == 'sb':
+                rep_sb(args.id, args.path)
 
         elif args.which == 'fdisk':
             fdiskCommand(args, shlex.split(newStringWithLowers)[1])
@@ -121,6 +127,8 @@ def parseString(command):
             unmount(args.id)
         elif args.which == 'mkfs':
             mkfs(args.id, args.fs)
+        elif args.which == 'pause':
+            val = input('System on pause, press enter to unpause...')
 
     except argparse.ArgumentError as _:
         print("Error: one argument was not expected")

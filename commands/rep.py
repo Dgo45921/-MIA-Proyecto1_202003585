@@ -4,6 +4,7 @@ from itertools import chain
 
 from Entities.EBR import EBR
 from Entities.MBR import MBR
+from Entities.SuperBlock import SuperBlock
 from utils.graphviz import basicMBR_report
 from commands.mount import get_mounted_partition
 
@@ -60,11 +61,14 @@ def rep_mbr(id_, output_path):
         f.close()
 
     if file_name.endswith('.jpg'):
-        os.system("dot -Tjpg \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+output_path+'"')
+        os.system(
+            "dot -Tjpg \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
     elif file_name.endswith('.png'):
-        os.system("dot -Tpng \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+ output_path+'"')
+        os.system(
+            "dot -Tpng \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
     elif file_name.endswith('.pdf'):
-        os.system("dot -Tpdf \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+ output_path+'"')
+        os.system(
+            "dot -Tpdf \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
 
     os.system('rm \"' + directory + "/" + file_name.split('.')[0] + '.dot\"')
     print(f'mbr report generated in{directory}')
@@ -111,15 +115,105 @@ def rep_disk(id_, output_path):
         f.close()
 
     if file_name.endswith('.jpg'):
-        os.system("dot -Tjpg \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+ output_path+'"' )
+        os.system(
+            "dot -Tjpg \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
     elif file_name.endswith('.png'):
-        os.system("dot -Tpng \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " +'"'+ output_path+'"')
+        os.system(
+            "dot -Tpng \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
     elif file_name.endswith('.pdf'):
-        os.system("dot -Tpdf\"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"'+output_path+'"')
+        os.system(
+            "dot -Tpdf\"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
 
     os.system('rm "' + directory + "/" + file_name.split('.')[0] + '.dot\"')
     print(f'disk report generated in{directory}')
 
+
+def rep_sb(id_, output_path):
+    if " " in output_path:
+        '"' + output_path + '"'
+
+    if not (output_path.endswith(".jpg") or output_path.endswith(".png") or output_path.endswith('.pdf')):
+        print('Error, output extension must be .jpg, .png or .pdf')
+
+    partition_dict = get_mounted_partition(id_)
+    if partition_dict is None:
+        print(f'Error, no mounted partition {id_}')
+        return
+
+    mounted_partition = partition_dict['partition']
+
+    if mounted_partition.type == b'e':
+        print('Cannot get superblock report for an extended partition!')
+        return
+
+    super_block = SuperBlock()
+    disk_file = open(partition_dict['disk_path'], 'rb+')
+    disk_file.seek(mounted_partition.start)
+    sb_data = disk_file.read(super_block.getSuperBlockSize())
+    super_block.deserialize(sb_data)
+    disk_file.close()
+
+    code = get_sb_viz_code(super_block, partition_dict['disk_path'])
+    directory = os.path.dirname(output_path)
+    os.makedirs(directory, exist_ok=True)
+    file_name = os.path.basename(output_path)
+
+    with open(directory + "/" + file_name.split('.')[0] + '.dot', 'w') as f:
+        f.write(code)
+        f.close()
+
+    if file_name.endswith('.jpg'):
+        os.system(
+            "dot -Tjpg \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
+    elif file_name.endswith('.png'):
+        os.system(
+            "dot -Tpng \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
+    elif file_name.endswith('.pdf'):
+        os.system(
+            "dot -Tpdf\"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
+
+    os.system('rm "' + directory + "/" + file_name.split('.')[0] + '.dot\"')
+    print(f'superblock report generated in{directory}')
+
+
+def get_sb_viz_code(sb, disk_name):
+    vizcode = """digraph G {
+    node [shape=plaintext];
+    
+    struct [label=<<table border="1" cellborder="1" cellspacing="0">
+        <tr><td bgcolor="orange"><font color="white"><b> REPORTE SUPERBLOQUE  </b></font></td><td bgcolor="orange"><font color="white"><b>   Valor   </b></font></td></tr>
+ """
+    fileSystem = "Ext2"
+
+    if sb.filesystem_type == 3:
+        fileSystem = "Ext3"
+
+
+    vizcode += f"""    
+        <tr><td>disk name</td><td>{disk_name}</td></tr>    
+        <tr><td>filesystem_type</td><td>{fileSystem}</td></tr>
+        <tr><td>inodes_count</td><td>{sb.inodes_count}</td></tr>
+        <tr><td>blocks_count</td><td>{sb.blocks_count}</td></tr>
+        <tr><td>free_blocks_count</td><td>{sb.free_blocks_count}</td></tr>
+        <tr><td>free_inodes_count</td><td>{sb.free_inodes_count}</td></tr>
+        <tr><td>mtime</td><td>{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(sb.mtime))}</td></tr>
+        <tr><td>umtime</td><td>{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(sb.umtime))}</td></tr>
+        <tr><td>mcount</td><td>{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(sb.mcount))}</td></tr>
+        <tr><td>magic</td><td>{sb.magic}</td></tr>
+        <tr><td>inode_size (bytes) </td><td>{sb.inode_size}</td></tr>
+        <tr><td>block_size (bytes) </td><td>{sb.block_size}</td></tr>
+        <tr><td>first_ino</td><td>{sb.first_ino}</td></tr>
+        <tr><td>first_blo</td><td>{sb.first_blo}</td></tr>
+        <tr><td>bm_inode_start</td><td>{sb.bm_inode_start}</td></tr>
+        <tr><td>bm_block_start</td><td>{sb.bm_block_start}</td></tr>
+        <tr><td>inode_start</td><td>{sb.inode_start}</td></tr>
+        <tr><td>block_start</td><td>{sb.block_start}</td></tr>"""
+
+    vizcode += """    </table>>];
+}
+"""
+
+    return vizcode
 
 def get_disk_viz_code(mbr, spaces_partitions, blank_spaces, partitions, path):
     viz_code = """
@@ -136,7 +230,6 @@ def get_disk_viz_code(mbr, spaces_partitions, blank_spaces, partitions, path):
 
     disk_map = sorted(chain(disk_free, spaces_p), key=lambda x: x['start_byte'])
 
-
     for i in range(len(disk_map)):
         val = check_if_blank_space_starts(blank_spaces, disk_map[i]['start_byte'])
         if val:
@@ -148,9 +241,9 @@ def get_disk_viz_code(mbr, spaces_partitions, blank_spaces, partitions, path):
             found_partition = get_partition_by_byte(partitions, disk_map[i]['start_byte'])
             if found_partition.type != b'e':
                 if i != len(disk_map) - 1:
-                    viz_code += f"{get_type_by_initial(found_partition.type)} &#92;n {(found_partition.size/mbr.size) * 100}% |"
+                    viz_code += f"{get_type_by_initial(found_partition.type)} &#92;n {(found_partition.size / mbr.size) * 100}% |"
                 else:
-                    viz_code += f"{get_type_by_initial(found_partition.type)} &#92;n {(found_partition.size/mbr.size) * 100}% "
+                    viz_code += f"{get_type_by_initial(found_partition.type)} &#92;n {(found_partition.size / mbr.size) * 100}% "
             else:
                 febr = get_ebr(found_partition.start, path)
                 ebr_partitions = [
@@ -201,15 +294,11 @@ def get_disk_viz_code(mbr, spaces_partitions, blank_spaces, partitions, path):
                             viz_code += f"EBR &#92;n {((ebr_map[j]['size'] - febr.getEBRsize()) / mbr.size) * 100}% |"
                             viz_code += f"LOGICA &#92;n {(ebr_map[j]['size'] / mbr.size) * 100}% "
 
-
-
-
                 viz_code += "}"
                 if i != len(disk_map) - 1:
                     viz_code += "}|"
                 else:
                     viz_code += "}"
-
 
     viz_code += """
     
