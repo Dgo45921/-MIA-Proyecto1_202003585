@@ -128,6 +128,77 @@ def rep_disk(id_, output_path):
     print(f'disk report generated in{directory}')
 
 
+def rep_bm(id_, output_path, bm_type):
+
+
+    if " " in output_path:
+        '"' + output_path + '"'
+
+    if not (output_path.endswith('.txt')):
+        print('Error, output extension must be .txt')
+        return
+
+    partition_dict = get_mounted_partition(id_)
+    if partition_dict is None:
+        print(f'Error, no mounted partition {id_}')
+        return
+
+    mounted_partition = partition_dict['partition']
+
+    if mounted_partition.type == b'e':
+        print('Cannot get superblock report for an extended partition!')
+        return
+
+    super_block = SuperBlock()
+    disk_file = open(partition_dict['disk_path'], 'rb+')
+    disk_file.seek(mounted_partition.start)
+    sb_data = disk_file.read(super_block.getSuperBlockSize())
+    super_block.deserialize(sb_data)
+
+    text = ""
+
+    if bm_type == 1:
+        counter = 0
+        for i in range(super_block.inodes_count):
+            disk_file.seek(super_block.bm_inode_start + i)
+            if counter == 20:
+                text += '\n'
+                counter = 0
+
+            val = disk_file.read(1)
+            if val == b'\1':
+                text += '1'
+            else:
+                text += '0'
+            counter += 1
+    else:
+        counter = 0
+        for i in range(super_block.blocks_count):
+            disk_file.seek(super_block.bm_block_start + i)
+            if counter == 20:
+                text += '\n'
+                counter = 0
+
+            val = disk_file.read(1)
+            if val == b'\1':
+                text += '1'
+            else:
+                text += '0'
+            counter += 1
+
+
+    disk_file.close()
+    directory = os.path.dirname(output_path)
+    os.makedirs(directory, exist_ok=True)
+    file_name = os.path.basename(output_path)
+
+    with open(directory + "/" + file_name.split('.')[0] + '.txt', 'w') as f:
+        f.write(text)
+        f.close()
+
+    print(f'Bitmap report generated in: {output_path}')
+
+
 def rep_sb(id_, output_path):
     if " " in output_path:
         '"' + output_path + '"'
