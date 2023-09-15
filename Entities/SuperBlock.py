@@ -69,3 +69,26 @@ class SuperBlock(ctypes.Structure):
          self.bm_block_start,
          self.inode_start,
          self.block_start) = struct.unpack(pack_const, data)
+
+    def serialize(self):
+        serialize = struct.pack(
+            pack_const,
+            self.filesystem_type,
+            self.inodes_count,
+            self.blocks_count,
+            self.free_blocks_count,
+            self.free_inodes_count,
+            self.mtime,
+            self.umtime,
+            self.mcount,
+            self.magic,
+            self.inode_size,
+            self.block_size,
+            self.first_ino,
+            self.first_blo,
+            self.bm_inode_start,
+            self.bm_block_start,
+            self.inode_start,
+            self.block_start,
+        )
+        return serialize

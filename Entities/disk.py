@@ -20,11 +20,15 @@ class Mkdisk:
             return
 
         file_size = 0
+        # creating mbr
+        self.mbr = MBR()
 
         if self.units == 'm':
             file_size = int(self.size) * 1024 * 1024  # MB
+            self.mbr.setAttributes(int(self.size) * 1024 * 1024, self.fit[0].upper())
         else:
             file_size = int(self.size) * 1024  # KB
+            self.mbr.setAttributes(int(self.size) * 1024, self.fit[0].upper())
 
         byte_value = b'\x00'
         directory = os.path.dirname(self.path)
@@ -34,9 +38,8 @@ class Mkdisk:
             f.write(byte_value * file_size)
             f.close()
 
-        # creating mbr
-        self.mbr = MBR()
-        self.mbr.setAttributes(int(self.size) * 1024 * 1024, self.fit[0].upper())
+
+
 
         with open(self.path, 'rb+') as f:
             f.seek(0)

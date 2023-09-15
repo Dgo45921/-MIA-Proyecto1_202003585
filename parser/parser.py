@@ -131,13 +131,24 @@ def parseString(command):
 def lowerCaseCommand(command_args):
     for i in range(len(command_args)):
         if not (command_args[i].lower().startswith('path') or command_args[i].lower().startswith('-path') or
-                command_args[i].lower().startswith('name') or command_args[i].lower().startswith('-name')):
+                command_args[i].lower().startswith('name') or command_args[i].lower().startswith('-name') or
+                command_args[i].lower().startswith('size') or command_args[i].lower().startswith('-size') or
+                command_args[i].lower().startswith('unit') or command_args[i].lower().startswith('-unit') or
+                command_args[i].lower().startswith('fit') or command_args[i].lower().startswith('-fit') or
+                command_args[i].lower().startswith('type') or command_args[i].lower().startswith('-type') or
+                command_args[i].lower().startswith('delete') or command_args[i].lower().startswith('-delete') or
+                command_args[i].lower().startswith('add') or command_args[i].lower().startswith('-add') or
+                command_args[i].lower().startswith('id') or command_args[i].lower().startswith('-id') or
+                command_args[i].lower().startswith('fs') or command_args[i].lower().startswith('-fs')
+        ):
             command_args[i] = command_args[i].lower()
         else:
             splitted_path = command_args[i].split('=')
             splitted_path[0] = splitted_path[0].lower()
             if " " in splitted_path[1]:
                 command_args[i] = command_args[i].replace(splitted_path[1], '"' + splitted_path[1] + '"')
+            else:
+                command_args[i] = splitted_path[0] + "=" + splitted_path[1]
 
     return command_args
 

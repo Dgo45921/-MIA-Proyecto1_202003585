@@ -22,7 +22,7 @@ class FileBlock(ctypes.Structure):
     def getFileBlockSize(self):
         return struct.calcsize(const)
 
-    def doSerialize(self):
+    def serialize(self):
         serialize = struct.pack(
             const,
             self.b_content,
