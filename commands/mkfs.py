@@ -88,7 +88,7 @@ def createEXT2(n, found_partition, new_super_block, path):
     Inode0.i_atime = current_date
     Inode0.i_ctime = current_date
     Inode0.i_mtime = current_date
-    Inode0.i_type = b'\0'  # this is a  folder inode
+    Inode0.i_type = b'0'  # this is a  folder inode
     Inode0.i_perm = b'664'
     Inode0.i_block[0] = 0
 

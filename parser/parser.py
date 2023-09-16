@@ -4,7 +4,7 @@ import shlex
 import commands
 from commands.mkdisk import mkdiskCommand
 from commands.mkfs import mkfs
-from commands.rep import rep_mbr, rep_disk, rep_sb, rep_bm
+from commands.rep import rep_mbr, rep_disk, rep_sb, rep_bm, rep_inode
 from commands.fdisk import fdiskCommand
 from commands.rmdisk import rmdisk
 from commands.mount import mount
@@ -120,6 +120,8 @@ def parseString(command):
                 rep_bm(args.id, args.path, 1)
             elif args.name == 'bm_block':
                 rep_bm(args.id, args.path, 2)
+            elif args.name == 'inode':
+                rep_inode(args.id, args.path)
 
 
         elif args.which == 'fdisk':
