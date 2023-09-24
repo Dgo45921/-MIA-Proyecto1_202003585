@@ -1,10 +1,14 @@
+import html
 import os
 import time
 from itertools import chain
 
 from Entities.EBR import EBR
+from Entities.FileBlock import FileBlock
+from Entities.FolderBlock import Folderblock
 from Entities.Inode import Inode
 from Entities.MBR import MBR
+from Entities.PointerBlock import PointerBlock
 from Entities.SuperBlock import SuperBlock
 from utils.graphviz import basicMBR_report
 from commands.mount import get_mounted_partition
@@ -69,7 +73,6 @@ def rep_mbr(id_, output_path):
         os.system(
             "dot -Tpdf \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
 
-    os.system('rm \"' + directory + "/" + file_name.split('.')[0] + '.dot\"')
     print(f'mbr report generated in {directory}')
 
 
@@ -123,7 +126,6 @@ def rep_disk(id_, output_path):
         os.system(
             "dot -Tpdf\"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
 
-    os.system('rm "' + directory + "/" + file_name.split('.')[0] + '.dot\"')
     print(f'disk report generated in {directory}')
 
 
@@ -173,8 +175,56 @@ def rep_inode(id_, output_path):
         os.system(
             "dot -Tpdf \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
 
-    os.system('rm \"' + directory + "/" + file_name.split('.')[0] + '.dot\"')
     print(f'inode report generated in {directory}')
+
+
+def rep_block(id_, output_path):
+    if " " in output_path:
+        '"' + output_path + '"'
+
+    if not (output_path.endswith(".jpg") or output_path.endswith(".png") or output_path.endswith('.pdf')):
+        print('Error, output extension must be .jpg, .png or .pdf')
+        return
+
+    partition_dict = get_mounted_partition(id_)
+    if partition_dict is None:
+        print(f'Error, no mounted partition {id_}')
+        return
+
+    mounted_partition = partition_dict['partition']
+
+    if mounted_partition.type == b'e':
+        print('Cannot get superblock report for an extended partition!')
+        return
+
+    super_block = SuperBlock()
+    disk_file = open(partition_dict['disk_path'], 'rb+')
+    disk_file.seek(mounted_partition.start)
+    sb_data = disk_file.read(super_block.getSuperBlockSize())
+    super_block.deserialize(sb_data)
+    disk_file.close()
+
+    code = get_dot_block(super_block, partition_dict['disk_path'])
+
+    directory = os.path.dirname(output_path)
+    os.makedirs(directory, exist_ok=True)
+    file_name = os.path.basename(output_path)
+
+    with open(directory + "/" + file_name.split('.')[0] + '.dot', 'w') as f:
+        f.write(code)
+        f.close()
+
+    if file_name.endswith('.jpg'):
+        os.system(
+            "dot -Tjpg \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
+    elif file_name.endswith('.png'):
+        os.system(
+            "dot -Tpng \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
+    elif file_name.endswith('.pdf'):
+        os.system(
+            "dot -Tpdf \"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
+
+    print(f'block report generated in {directory}')
 
 
 def get_dot_inode(super_block, file_path):
@@ -215,6 +265,68 @@ def get_dot_inode(super_block, file_path):
 
     disk_file.close()
     return dot_code
+
+
+def get_dot_block(super_block, file_path):
+    dot_code = """digraph G {
+        node [shape=box];
+        """
+
+    disk_file = open(file_path, 'rb+')
+
+    bitmap = []
+
+    for i in range(super_block.blocks_count):
+        disk_file.seek(super_block.bm_block_start + i)
+        bitmap.append(disk_file.read(1))
+
+    for i in range(super_block.blocks_count):
+        if bitmap[i] == b'\x00':
+            continue
+        lol = PointerBlock()
+        disk_file.seek(super_block.block_start + i * lol.getBlockSize())
+        lol.deserialize(disk_file.read(lol.getBlockSize()))
+        imprimir = True
+
+        for x in lol.b_pointers:
+            if x > super_block.blocks_count or x == 0:
+                imprimir = False
+                break
+
+        if imprimir:
+            dot_code += f'node{i} [label="i_uid: {" ".join(map(str, lol.b_pointers))}]'
+            continue
+
+        if not imprimir:
+            imprimir = True
+            ignore = [".", ".."]
+            lol = Folderblock()
+            disk_file.seek(super_block.block_start + i * lol.getFolderBlockSize())
+            lol.deserialize(disk_file.read(lol.getFolderBlockSize2()))
+            for x in lol.Content:
+                if x.b_inodo > super_block.inodes_count or (
+                        x.b_inodo == 0 and x.b_name.decode().strip("\x00") not in ignore):
+                    imprimir = False
+                    break
+
+        if imprimir:
+            for content in lol.Content:
+                dot_code += (
+                    f'node{i} [label="b_inodo: {content.b_inodo} &#92;n b_name: {content.b_name.decode("utf-8")}]')
+            continue
+
+        if not imprimir:
+            lol = FileBlock()
+            disk_file.seek(super_block.block_start + i * lol.getFileBlockSize())
+            lol.deserialize(disk_file.read(lol.getFileBlockSize()))
+            dot_code += f'node{i} [label="b_content: {html.escape(lol.b_content.decode("utf-8"))}"]\n'
+            continue
+
+    dot_code += '}'
+
+    disk_file.close()
+    return dot_code
+
 
 def rep_bm(id_, output_path, bm_type):
     if " " in output_path:
@@ -298,9 +410,10 @@ def rep_sb(id_, output_path):
 
     mounted_partition = partition_dict['partition']
 
-    if mounted_partition.type == b'e':
-        print('Cannot get superblock report for an extended partition!')
-        return
+    if not isinstance(mounted_partition, EBR):
+        if mounted_partition.type == b'e':
+            print('Cannot get superblock report for an extended partition!')
+            return
 
     super_block = SuperBlock()
     disk_file = open(partition_dict['disk_path'], 'rb+')
@@ -328,7 +441,6 @@ def rep_sb(id_, output_path):
         os.system(
             "dot -Tpdf\"" + directory + "/" + file_name.split('.')[0] + '.dot\"' + " -o " + '"' + output_path + '"')
 
-    os.system('rm "' + directory + "/" + file_name.split('.')[0] + '.dot\"')
     print(f'superblock report generated in: {directory}')
 
 
@@ -486,7 +598,7 @@ def get_mbr_viz_code(mbr, partitions, path):
   node [shape=plaintext];
   tbl [label=<
     <table border="0" cellborder="1" cellspacing="0">
-    <tr><td bgcolor="red" colspan="4"><font color="white"><b> REPORTE MBR </b></font></td></tr>
+    <tr><td bgcolor="green" colspan="4"><font color="white"><b> REPORTE DE MBR </b></font></td></tr>
 """
     viz_code += f"""
         <tr>
@@ -508,7 +620,7 @@ def get_mbr_viz_code(mbr, partitions, path):
         """
 
     for partition in partitions:
-        viz_code += f"""<tr><td bgcolor="red" colspan="4"><font color="white"><b>{"PARTICION " + get_type_by_initial(partition.type)} </b></font></td></tr>"""
+        viz_code += f"""<tr><td bgcolor="purple" colspan="4"><font color="white"><b>{"PARTICION " + get_type_by_initial(partition.type)} </b></font></td></tr>"""
         viz_code += f"""
           
         <tr>

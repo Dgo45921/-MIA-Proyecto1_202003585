@@ -53,6 +53,8 @@ def get_dict(partitions, name, path, disk_name):
         index += 1
         if b'e' == partition.type or bytes(name, 'ascii') == partition.name:
             if b'e' == partition.type:
+                if bytes(name, 'ascii') == partition.name:
+                    return {'id': id_const + str(index) + disk_name, 'partition': partition}
                 current_ebr = get_ebr(partition.start, path)
                 if current_ebr.next != 1:
                     while current_ebr.next != -1:

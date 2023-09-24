@@ -6,14 +6,11 @@ const = '<64s'
 
 class FileBlock(ctypes.Structure):
     _fields_ = [
-        ('b_content', ctypes.c_char * 64),
+        ('b_content', ctypes.c_char * 64)
     ]
 
     def __init__(self):
-        self.b_content = b'\0' * 64
-
-    def set_infomation(self, b_content):
-        self.b_content = coding_str(b_content, 64)
+        self.b_content = b'\x30' * 64
 
     def get_infomation(self):
         print("==Fileblock info")
@@ -23,14 +20,11 @@ class FileBlock(ctypes.Structure):
         return struct.calcsize(const)
 
     def serialize(self):
-        serialize = struct.pack(
-            const,
-            self.b_content,
-        )
-        return serialize
+        serialized = struct.pack(const, self.b_content)
+        return serialized
 
-    def doDeserialize(self, data):
-        self.b_content = struct.unpack(const, data)
+    def deserialize(self, data):
+        self.b_content = b'\x00\x00\x00\x00.\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x001,G,root\n1,U,root,root,123\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 
 
 def coding_str(string, size):

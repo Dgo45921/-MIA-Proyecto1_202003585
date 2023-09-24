@@ -110,10 +110,15 @@ unmount -id=851Disco1 #ERR PARTICION YA DESMONTADA -> id1
 unmount -id=852Disco1 #-> id4
 
 
+mkfs -type=full -id=854Disco2
+
+
 #REPORTES---------------------------------------------------
 #DISCO 1
-rep -id=854Disco2 -path=/home/dgo/archivos/reports/reporte1.jpg -name=disk #ERR ID NO ENCONTRADO -> id1
+
+rep -id=854Disco2 -path=/home/dgo/archivos/reports/reporte1.jpg -name=disk 
+rep -id=854Disco2 -path=/home/dgo/archivos/reports/reporte2.jpg -name=mbr 
+rep -id=854Disco2 -path=/home/dgo/archivos/reports/reporte3.jpg -name=sb 
 
 
 
-#exec -path=../basico.mia

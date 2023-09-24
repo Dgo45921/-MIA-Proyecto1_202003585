@@ -77,8 +77,8 @@ def fdiskCommand(args, first_parameter):
 
             else:
                 if first_ebr.next == -1:
-                    if first_ebr.size + first_ebr.getSerializedEBR() + first_ebr.start + args.size < partitionToModify.start + partitionToModify.size:
-                        first_ebr.size += args.size
+                    if first_ebr.size + first_ebr.getSerializedEBR() + first_ebr.start + calculate_size(args.units, args.size) < partitionToModify.start + partitionToModify.size:
+                        first_ebr.size += calculate_size(args.units, args.size)
                         with open(args.path, 'rb+') as f:
                             f.seek(first_ebr.start)
                             f.write(first_ebr.getSerializedEBR())
@@ -87,8 +87,8 @@ def fdiskCommand(args, first_parameter):
                         return
                 else:
                     next_ebr = get_ebr(first_ebr.next, args.path)
-                    if first_ebr.size + first_ebr.getSerializedEBR() + first_ebr.start + args.size < next_ebr.start:
-                        first_ebr.size += args.size
+                    if first_ebr.size + first_ebr.getSerializedEBR() + first_ebr.start + calculate_size(args.units, args.size) < next_ebr.start:
+                        first_ebr.size += calculate_size(args.units, args.size)
                         with open(args.path, 'rb+') as f:
                             f.seek(first_ebr.start)
                             f.write(first_ebr.getSerializedEBR())
@@ -270,6 +270,8 @@ def createPartition(args):
 
             partitionToModify.start = pos
             print('the starting byte will be: ', pos)
+
+
         elif mbr.fit == b'W':
             print('W')
             pos = get_worst_fit_position(mbr.size, partitionToModify, args, partitions)
@@ -279,6 +281,8 @@ def createPartition(args):
 
             partitionToModify.start = pos
             print('the starting byte will be: ', pos)
+
+
         elif mbr.fit == b'B':
             print('B')
             pos = get_best_fit_position(mbr.size, partitionToModify, args, partitions)
@@ -287,7 +291,9 @@ def createPartition(args):
                 return
 
             partitionToModify.start = pos
-            print('the starting byte will be: ', pos + 1)
+            print('the starting byte will be: ', pos)
+
+
 
         if partitionToModify.size > mbr.size - mbr_full_size:
             print('Error: partition size must be less than disk size')
@@ -369,6 +375,9 @@ def createPartition(args):
                     first_ebr.start = partitionToModify.start + pos
 
                     print('the starting byte will be: ', partitionToModify.start + pos)
+
+
+
                 elif partitionToModify.fit == b'w':
                     print('W')
                     pos = get_worst_fit_position(partitionToModify.size, first_ebr, args, partitions)
@@ -378,6 +387,8 @@ def createPartition(args):
                     first_ebr.start = partitionToModify.start + pos
 
                     print('the starting byte will be: ', partitionToModify.start + pos)
+
+
                 elif partitionToModify.fit == b'b':
                     print('B')
                     pos = get_best_fit_position(partitionToModify.size, first_ebr, args, partitions)
@@ -387,6 +398,8 @@ def createPartition(args):
                     first_ebr.start = partitionToModify.start + pos
 
                     print('the starting byte will be: ', partitionToModify.start + pos)
+
+
 
 
                 with open(args.path, 'rb+') as f:
@@ -405,7 +418,7 @@ def createPartition(args):
                 first_ebr.next = next_ebr.start
                 next_ebr.name = bytes(args.name, 'ascii')
                 next_ebr.fit = bytes(args.fit[0], 'ascii')
-                next_ebr.size = args.size
+                next_ebr.size = calculate_size(args.unit, args.size)
                 next_ebr.status = b'1'
 
                 # -------------------------------------------------------------------
@@ -429,6 +442,8 @@ def createPartition(args):
                     next_ebr.start = partitionToModify.start + pos
 
                     print('the starting byte will be: ', partitionToModify.start + pos)
+
+
                 elif partitionToModify.fit == b'w':
                     print('W')
                     pos = get_worst_fit_position(partitionToModify.size, next_ebr, args, partitions)
@@ -438,6 +453,8 @@ def createPartition(args):
                     next_ebr.start = partitionToModify.start + pos
 
                     print('the starting byte will be: ', partitionToModify.start + pos)
+
+
                 elif partitionToModify.fit == b'b':
                     print('B')
                     pos = get_best_fit_position(partitionToModify.size, next_ebr, args, partitions)
@@ -447,6 +464,9 @@ def createPartition(args):
                     next_ebr.start = partitionToModify.start + pos
 
                     print('the starting byte will be: ', partitionToModify.start + pos)
+
+
+
 
                 # ----------------------------------------------------------------------
 
@@ -654,7 +674,7 @@ def add_space(mbr, partition_index, additional_size, disk_size, args, partitions
         return
 
     if partition['start_byte'] + new_size > disk_size:
-        print("Space addition would exceed disk size.")
+        print("Error: space addition would exceed disk size.")
         return
 
     partition['size'] = new_size

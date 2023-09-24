@@ -18,12 +18,15 @@ class Folderblock(ctypes.Structure):
     def getFolderBlockSize(self):
         return struct.calcsize(const)
 
+    def getFolderBlockSize2(self):
+        return 64
+
     def serialize(self):
         return self.Content[0].serialize() + self.Content[1].serialize() + self.Content[2].serialize() + \
             self.Content[3].serialize()
 
     def deserialize(self, data):
-        sizeContent = struct.calcsize(Content().getConst())
+        sizeContent = Content().getContentSize()
 
         for i in range(4):
             dataContent = data[(i * sizeContent): ((i + 1) * sizeContent)]
